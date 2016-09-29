@@ -7,7 +7,7 @@ import math
 # Keras deep learning library
 from keras.models import Sequential
 from keras.layers.recurrent import LSTM
-from keras.layers import Dense, TimeDistributed, Activation
+from keras.layers import Dense, Activation
 from keras.optimizers import Adam, RMSprop, SGD
 from keras.callbacks import Callback
 
@@ -31,9 +31,9 @@ class GenreFeatureData:
     hop_length = None
     genre_list = ['classical', 'country', 'disco', 'hiphop', 'jazz', 'metal', 'pop', 'reggae']
 
-    dir_testfolder = "/Users/iorife/github/LSTM-Music-Genre-Classification/gtzan/_test"
-    dir_validationfolder = "/Users/iorife/github/LSTM-Music-Genre-Classification/gtzan/_validation"
-    dir_trainfolder = "/Users/iorife/github/LSTM-Music-Genre-Classification/gtzan/_train"
+    dir_testfolder = "./gtzan/_test"
+    dir_validationfolder = "./gtzan/_validation"
+    dir_trainfolder = "./gtzan/_train"
 
     test_X = test_Y = None
     validation_X = validation_Y = None
@@ -101,7 +101,7 @@ class GenreFeatureData:
             spectral_roll = librosa.feature.spectral_rolloff(y=y, sr=sr, hop_length=hop_length)
 
             splits = re.split('[ .]', file)
-            genre = re.split('[ /]', splits[0])[7]
+            genre = re.split('[ /]', splits[1])[3]
             target.append(genre)
 
             data[i, :, 0:13] = mfcc.T[0:timeseries_length, :]
@@ -131,7 +131,7 @@ def path_to_audiofiles(dir_folder):
 
 
 genre_features = GenreFeatureData()
-genre_features.load_aggregate_save_training_data()
+# genre_features.load_aggregate_save_training_data()
 genre_features.load_saved_training_data()
 
 opt = Adam(lr=0.0067, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
