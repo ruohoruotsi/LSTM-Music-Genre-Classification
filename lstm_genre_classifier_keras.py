@@ -35,6 +35,15 @@ class GenreFeatureData:
     dir_validationfolder = "./gtzan/_validation"
     dir_trainfolder = "./gtzan/_train"
 
+    test_X_preprocessed_data = 'data_test_input.npy'
+    test_Y_preprocessed_data = 'data_test_target.npy'
+
+    validation_X_preprocessed_data = 'data_validation_input.npy'
+    validation_Y_preprocessed_data = 'data_validation_target.npy'
+
+    train_X_preprocessed_data = 'data_train_input.npy'
+    train_Y_preprocessed_data = 'data_train_target.npy'
+
     test_X = test_Y = None
     validation_X = validation_Y = None
     train_X = train_Y = None
@@ -42,44 +51,44 @@ class GenreFeatureData:
     def __init__(self):
         self.hop_length = 512
 
-    def load_aggregate_save_training_data(self):
-        self.path_to_testfiles = path_to_audiofiles(self.dir_testfolder)
-        self.path_to_validationfiles = path_to_audiofiles(self.dir_validationfolder)
-        self.path_to_trainfiles = path_to_audiofiles(self.dir_trainfolder)
+    def load_preprocess_data(self):
+        self.testfiles_list = path_to_audiofiles(self.dir_testfolder)
+        self.validationfiles_list = path_to_audiofiles(self.dir_validationfolder)
+        self.trainfiles_list = path_to_audiofiles(self.dir_trainfolder)
 
         # Test set
-        self.test_X, self.test_Y = self.extract_audio_features(self.path_to_testfiles, hop_length=self.hop_length)
-        with open('data_test_input2.npy', 'wb') as f:
+        self.test_X, self.test_Y = self.extract_audio_features(self.testfiles_list, hop_length=self.hop_length)
+        with open(self.test_X_preprocessed_data, 'wb') as f:
             np.save(f, self.test_X)
-        with open('data_test_target2.npy', 'wb') as f:
+        with open(self.test_Y_preprocessed_data, 'wb') as f:
             np.save(f, self.test_Y)
 
         # Validation set
-        self.validation_X, self.validation_Y = self.extract_audio_features(self.path_to_validationfiles, hop_length=self.hop_length)
-        with open('data_validation_input2.npy', 'wb') as f:
+        self.validation_X, self.validation_Y = self.extract_audio_features(self.validationfiles_list, hop_length=self.hop_length)
+        with open(self.validation_X_preprocessed_data, 'wb') as f:
             np.save(f, self.validation_X)
-        with open('data_validation_target2.npy', 'wb') as f:
+        with open(self.validation_Y_preprocessed_data, 'wb') as f:
             np.save(f, self.validation_Y)
 
         # Training set
-        self.train_X, self.train_Y = self.extract_audio_features(self.path_to_trainfiles, hop_length=self.hop_length)
-        with open('data_train_input2.npy', 'wb') as f:
+        self.train_X, self.train_Y = self.extract_audio_features(self.trainfiles_list, hop_length=self.hop_length)
+        with open(self.train_X_preprocessed_data, 'wb') as f:
             np.save(f, self.train_X)
-        with open('data_train_target2.npy', 'wb') as f:
+        with open(self.train_Y_preprocessed_data, 'wb') as f:
             np.save(f, self.train_Y)
 
-    def load_saved_training_data(self):
+    def load_preprocessed_data(self):
 
-        self.test_X = np.load('./data_test_input2.npy')
-        self.test_Y = np.load('./data_validation_target2.npy')
-        # self.test_target = self.one_hot(self.test_target)
+        self.test_X = np.load(self.test_X_preprocessed_data)
+        self.test_Y = np.load(self.test_Y_preprocessed_data)
+        self.test_Y = self.one_hot(self.test_Y)
 
-        self.validation_X = np.load('./data_validation_input2.npy')
-        self.validation_Y = np.load('./data_validation_target2.npy')
+        self.validation_X = np.load(self.validation_X_preprocessed_data)
+        self.validation_Y = np.load(self.validation_Y_preprocessed_data)
         self.validation_Y = self.one_hot(self.validation_Y)
 
-        self.train_X = np.load('./data_train_input2.npy')
-        self.train_Y = np.load('./data_train_target2.npy')
+        self.train_X = np.load(self.train_X_preprocessed_data)
+        self.train_Y = np.load(self.train_Y_preprocessed_data)
         self.train_Y = self.one_hot(self.train_Y)
 
     def extract_audio_features(self, list_of_audiofiles, hop_length=512):
@@ -131,23 +140,24 @@ def path_to_audiofiles(dir_folder):
 
 
 genre_features = GenreFeatureData()
-# genre_features.load_aggregate_save_training_data()
-genre_features.load_saved_training_data()
+genre_features.load_preprocess_data()
+genre_features.load_preprocessed_data()
 
 opt = Adam(lr=0.0067, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
+opt = Adam(lr=0.008)
 # opt = Adam(lr=0.01)
 # opt = RMSprop()
 # opt = SGD(nesterov=True)
 # opt = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
 
 batch_size = 128
-nb_epochs = 400
+nb_epochs = 800
 
 print('Build LSTM RNN model ...')
 model = Sequential()
 model.add(LSTM(input_dim=genre_features.validation_X.shape[2],
-               output_dim=32, activation='sigmoid', dropout_U=0.05, dropout_W=0.05, return_sequences=True))
-model.add(LSTM(output_dim=16, activation='sigmoid', dropout_U=0.05, dropout_W=0.05, return_sequences=False))
+               output_dim=128, activation='sigmoid', dropout_U=0.05, dropout_W=0.05, return_sequences=True))
+model.add(LSTM(output_dim=64, activation='sigmoid', dropout_U=0.05, dropout_W=0.05, return_sequences=False))
 model.add(Dense(output_dim=genre_features.train_Y.shape[1], activation='softmax'))
 
 print("Compiling ...")
@@ -157,9 +167,13 @@ model.summary()
 print("Training ...")
 model.fit(genre_features.train_X, genre_features.train_Y, batch_size=batch_size, nb_epoch=nb_epochs)
 
-print("Evaluating ...")
-score, accuracy = model.evaluate(genre_features.validation_X, genre_features.validation_Y,
-                                 batch_size=batch_size, verbose=1)
+print("\nEvaluating ...")
+score, accuracy = model.evaluate(genre_features.validation_X, genre_features.validation_Y, batch_size=batch_size, verbose=1)
+print("Validation loss:  ", score)
+print("Validation accuracy:  ", accuracy)
 
-print("Validation score: ", score)
-print("Accuracy score:   ", accuracy)
+
+print("\nTesting ...")
+score, accuracy = model.evaluate(genre_features.test_X, genre_features.test_Y, batch_size=batch_size, verbose=1)
+print("Test loss:  ", score)
+print("Test accuracy:  ", accuracy)
