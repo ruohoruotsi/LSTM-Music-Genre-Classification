@@ -4,13 +4,14 @@ import librosa
 import numpy as np
 import math
 
-# Keras deep learning library
 from keras.models import Sequential
 from keras.layers.recurrent import LSTM
 from keras.layers import Dense, Activation
 from keras.optimizers import Adam, RMSprop, SGD
 from keras.callbacks import Callback
 
+# Turn off TF verbose logging
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # or any {'0', '1', '2'}
 
 # class TestCallback(Callback):
 #     def __init__(self, test_data):
@@ -31,83 +32,92 @@ class GenreFeatureData:
     hop_length = None
     genre_list = ['classical', 'country', 'disco', 'hiphop', 'jazz', 'metal', 'pop', 'reggae']
 
-    dir_testfolder = "./gtzan/_test"
-    dir_validationfolder = "./gtzan/_validation"
     dir_trainfolder = "./gtzan/_train"
-
-    test_X_preprocessed_data = 'data_test_input.npy'
-    test_Y_preprocessed_data = 'data_test_target.npy'
-
-    validation_X_preprocessed_data = 'data_validation_input.npy'
-    validation_Y_preprocessed_data = 'data_validation_target.npy'
+    dir_devfolder = "./gtzan/_validation"
+    dir_testfolder = "./gtzan/_test"
+    dir_all_files = "./gtzan"
 
     train_X_preprocessed_data = 'data_train_input.npy'
     train_Y_preprocessed_data = 'data_train_target.npy'
+    dev_X_preprocessed_data = 'data_validation_input.npy'
+    dev_Y_preprocessed_data = 'data_validation_target.npy'
+    test_X_preprocessed_data = 'data_test_input.npy'
+    test_Y_preprocessed_data = 'data_test_target.npy'
 
-    test_X = test_Y = None
-    validation_X = validation_Y = None
     train_X = train_Y = None
+    dev_X = dev_Y = None
+    test_X = test_Y = None
 
     def __init__(self):
         self.hop_length = 512
+        self.timeseries_length_list = []
 
     def load_preprocess_data(self):
-        self.testfiles_list = path_to_audiofiles(self.dir_testfolder)
-        self.validationfiles_list = path_to_audiofiles(self.dir_validationfolder)
         self.trainfiles_list = path_to_audiofiles(self.dir_trainfolder)
+        self.devfiles_list = path_to_audiofiles(self.dir_devfolder)
+        self.testfiles_list = path_to_audiofiles(self.dir_testfolder)
 
-        # Test set
-        self.test_X, self.test_Y = self.extract_audio_features(self.testfiles_list, hop_length=self.hop_length)
-        with open(self.test_X_preprocessed_data, 'wb') as f:
-            np.save(f, self.test_X)
-        with open(self.test_Y_preprocessed_data, 'wb') as f:
-            np.save(f, self.test_Y)
+        all_files_list = []
+        all_files_list.extend(self.trainfiles_list)
+        all_files_list.extend(self.devfiles_list)
+        all_files_list.extend(self.testfiles_list)
 
-        # Validation set
-        self.validation_X, self.validation_Y = self.extract_audio_features(self.validationfiles_list, hop_length=self.hop_length)
-        with open(self.validation_X_preprocessed_data, 'wb') as f:
-            np.save(f, self.validation_X)
-        with open(self.validation_Y_preprocessed_data, 'wb') as f:
-            np.save(f, self.validation_Y)
+        self.precompute_min_timeseries_len(all_files_list)
+        print("[DEBUG] total number of files: " + str(len(self.timeseries_length_list)))
 
         # Training set
-        self.train_X, self.train_Y = self.extract_audio_features(self.trainfiles_list, hop_length=self.hop_length)
+        self.train_X, self.train_Y = self.extract_audio_features(self.trainfiles_list)
         with open(self.train_X_preprocessed_data, 'wb') as f:
             np.save(f, self.train_X)
         with open(self.train_Y_preprocessed_data, 'wb') as f:
+            self.train_Y = self.one_hot(self.train_Y)
             np.save(f, self.train_Y)
 
-    def load_preprocessed_data(self):
+        # Validation set
+        self.dev_X, self.dev_Y = self.extract_audio_features(self.devfiles_list)
+        with open(self.dev_X_preprocessed_data, 'wb') as f:
+            np.save(f, self.dev_X)
+        with open(self.dev_Y_preprocessed_data, 'wb') as f:
+            self.dev_Y = self.one_hot(self.dev_Y)
+            np.save(f, self.dev_Y)
 
-        self.test_X = np.load(self.test_X_preprocessed_data)
-        self.test_Y = np.load(self.test_Y_preprocessed_data)
-        self.test_Y = self.one_hot(self.test_Y)
+        # Test set
+        self.test_X, self.test_Y = self.extract_audio_features(self.testfiles_list)
+        with open(self.test_X_preprocessed_data, 'wb') as f:
+            np.save(f, self.test_X)
+        with open(self.test_Y_preprocessed_data, 'wb') as f:
+            self.test_Y = self.one_hot(self.test_Y)
+            np.save(f, self.test_Y)
 
-        self.validation_X = np.load(self.validation_X_preprocessed_data)
-        self.validation_Y = np.load(self.validation_Y_preprocessed_data)
-        self.validation_Y = self.one_hot(self.validation_Y)
+
+    def load_deserialize_data(self):
 
         self.train_X = np.load(self.train_X_preprocessed_data)
         self.train_Y = np.load(self.train_Y_preprocessed_data)
-        self.train_Y = self.one_hot(self.train_Y)
 
-    def extract_audio_features(self, list_of_audiofiles, hop_length=512):
-        timeseries_length_list = []
+        self.dev_X = np.load(self.dev_X_preprocessed_data)
+        self.dev_Y = np.load(self.dev_Y_preprocessed_data)
+
+        self.test_X = np.load(self.test_X_preprocessed_data)
+        self.test_Y = np.load(self.test_Y_preprocessed_data)
+
+    def precompute_min_timeseries_len(self, list_of_audiofiles):
         for file in list_of_audiofiles:
             print("Loading " + str(file))
             y, sr = librosa.load(file)
-            timeseries_length_list.append(math.ceil(len(y) / hop_length))
+            self.timeseries_length_list.append(math.ceil(len(y) / self.hop_length))
 
-        timeseries_length = min(timeseries_length_list)
+    def extract_audio_features(self, list_of_audiofiles):
+        timeseries_length = min(self.timeseries_length_list)
         data = np.zeros((len(list_of_audiofiles), timeseries_length, 27), dtype=np.float64)
         target = []
 
         for i, file in enumerate(list_of_audiofiles):
             y, sr = librosa.load(file)
-            mfcc = librosa.feature.mfcc(y=y, sr=sr, hop_length=hop_length, n_mfcc=13)
-            spectral_center = librosa.feature.spectral_centroid(y=y, sr=sr, hop_length=hop_length)
-            chroma = librosa.feature.chroma_stft(y=y, sr=sr, hop_length=hop_length)
-            spectral_roll = librosa.feature.spectral_rolloff(y=y, sr=sr, hop_length=hop_length)
+            mfcc = librosa.feature.mfcc(y=y, sr=sr, hop_length=self.hop_length, n_mfcc=13)
+            spectral_center = librosa.feature.spectral_centroid(y=y, sr=sr, hop_length=self.hop_length)
+            chroma = librosa.feature.chroma_stft(y=y, sr=sr, hop_length=self.hop_length)
+            spectral_roll = librosa.feature.spectral_rolloff(y=y, sr=sr, hop_length=self.hop_length)
 
             splits = re.split('[ .]', file)
             genre = re.split('[ /]', splits[1])[3]
@@ -140,35 +150,44 @@ def path_to_audiofiles(dir_folder):
 
 
 genre_features = GenreFeatureData()
-genre_features.load_preprocess_data()
-genre_features.load_preprocessed_data()
+#genre_features.load_preprocess_data()
+genre_features.load_deserialize_data()
 
-opt = Adam(lr=0.0067, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
+# opt = Adam(lr=0.0067, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
 opt = Adam(lr=0.008)
 # opt = Adam(lr=0.01)
 # opt = RMSprop()
 # opt = SGD(nesterov=True)
 # opt = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
 
-batch_size = 128
-nb_epochs = 800
+batch_size = 70
+nb_epochs = 500
 
+print("Training X shape: " + str(genre_features.train_X.shape))
+print("Training Y shape: " + str(genre_features.train_Y.shape))
+
+print("Dev X shape: " + str(genre_features.dev_X.shape))
+print("Dev Y shape: " + str(genre_features.dev_Y.shape))
+
+print("Test X shape: " + str(genre_features.test_X.shape))
+print("Test Y shape: " + str(genre_features.test_X.shape))
+
+input_shape = (genre_features.train_X.shape[1], genre_features.train_X.shape[2])
 print('Build LSTM RNN model ...')
 model = Sequential()
-model.add(LSTM(input_dim=genre_features.validation_X.shape[2],
-               output_dim=128, activation='sigmoid', dropout_U=0.05, dropout_W=0.05, return_sequences=True))
-model.add(LSTM(output_dim=64, activation='sigmoid', dropout_U=0.05, dropout_W=0.05, return_sequences=False))
-model.add(Dense(output_dim=genre_features.train_Y.shape[1], activation='softmax'))
+model.add(LSTM(units=512, activation='sigmoid', dropout=0.05, recurrent_dropout=0.05, return_sequences=True, input_shape=input_shape))
+model.add(LSTM(units=256, activation='sigmoid', dropout=0.05, recurrent_dropout=0.05, return_sequences=False))
+model.add(Dense(units=genre_features.train_Y.shape[1], activation='softmax'))
 
 print("Compiling ...")
 model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 model.summary()
 
 print("Training ...")
-model.fit(genre_features.train_X, genre_features.train_Y, batch_size=batch_size, nb_epoch=nb_epochs)
+model.fit(genre_features.train_X, genre_features.train_Y, batch_size=batch_size, epochs=nb_epochs)
 
 print("\nEvaluating ...")
-score, accuracy = model.evaluate(genre_features.validation_X, genre_features.validation_Y, batch_size=batch_size, verbose=1)
+score, accuracy = model.evaluate(genre_features.dev_X, genre_features.dev_Y, batch_size=batch_size, verbose=1)
 print("Validation loss:  ", score)
 print("Validation accuracy:  ", accuracy)
 
