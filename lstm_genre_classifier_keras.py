@@ -8,23 +8,9 @@ from keras.models import Sequential
 from keras.layers.recurrent import LSTM
 from keras.layers import Dense, Activation
 from keras.optimizers import Adam, RMSprop, SGD
-from keras.callbacks import Callback
 
 # Turn off TF verbose logging
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # or any {'0', '1', '2'}
-
-# class TestCallback(Callback):
-#     def __init__(self, test_data):
-#         self.test_data = test_data
-#
-#     def on_epoch_end(self, epoch, logs={}):
-#         x, y = self.test_data
-#         loss, acc = self.model.evaluate(x, y, verbose=0)
-#         print('\nTesting loss: {}, acc: {}\n'.format(loss, acc))
-#
-# model.fit(X_train, Y_train, validation_data=(X_val, Y_val),
-#           callbacks=[TestCallback((X_test, Y_test))])
-
 
 class GenreFeatureData:
 
@@ -108,7 +94,8 @@ class GenreFeatureData:
             self.timeseries_length_list.append(math.ceil(len(y) / self.hop_length))
 
     def extract_audio_features(self, list_of_audiofiles):
-        timeseries_length = min(self.timeseries_length_list)
+        #timeseries_length = min(self.timeseries_length_list)
+        timeseries_length = 128
         data = np.zeros((len(list_of_audiofiles), timeseries_length, 27), dtype=np.float64)
         target = []
 
@@ -153,14 +140,16 @@ genre_features = GenreFeatureData()
 #genre_features.load_preprocess_data()
 genre_features.load_deserialize_data()
 
-# opt = Adam(lr=0.0067, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
-opt = Adam(lr=0.008)
-# opt = Adam(lr=0.01)
+# Adam defaults: lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-8, decay=0.
+opt = Adam()
+
+# RMSprop defaults: lr=0.001, rho=0.9, epsilon=1e-8, decay=0.
 # opt = RMSprop()
-# opt = SGD(nesterov=True)
+
+# SGD defaults; lr=0.01, momentum=0., decay=0.
 # opt = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
 
-batch_size = 70
+batch_size = 140
 nb_epochs = 500
 
 print("Training X shape: " + str(genre_features.train_X.shape))
@@ -175,8 +164,8 @@ print("Test Y shape: " + str(genre_features.test_X.shape))
 input_shape = (genre_features.train_X.shape[1], genre_features.train_X.shape[2])
 print('Build LSTM RNN model ...')
 model = Sequential()
-model.add(LSTM(units=512, activation='sigmoid', dropout=0.05, recurrent_dropout=0.05, return_sequences=True, input_shape=input_shape))
-model.add(LSTM(units=256, activation='sigmoid', dropout=0.05, recurrent_dropout=0.05, return_sequences=False))
+model.add(LSTM(units=128, dropout=0.05, recurrent_dropout=0.05, return_sequences=True, input_shape=input_shape))
+model.add(LSTM(units=32, dropout=0.05, recurrent_dropout=0.05, return_sequences=False))
 model.add(Dense(units=genre_features.train_Y.shape[1], activation='softmax'))
 
 print("Compiling ...")
@@ -188,8 +177,8 @@ model.fit(genre_features.train_X, genre_features.train_Y, batch_size=batch_size,
 
 print("\nEvaluating ...")
 score, accuracy = model.evaluate(genre_features.dev_X, genre_features.dev_Y, batch_size=batch_size, verbose=1)
-print("Validation loss:  ", score)
-print("Validation accuracy:  ", accuracy)
+print("Dev loss:  ", score)
+print("Dev accuracy:  ", accuracy)
 
 
 print("\nTesting ...")
