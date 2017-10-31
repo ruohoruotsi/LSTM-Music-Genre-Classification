@@ -6,8 +6,8 @@ import math
 
 from keras.models import Sequential
 from keras.layers.recurrent import LSTM
-from keras.layers import Dense, Activation
-from keras.optimizers import Adam, RMSprop, SGD
+from keras.layers import Dense
+from keras.optimizers import Adam
 
 # Turn off TF verbose logging
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # or any {'0', '1', '2'}
@@ -48,7 +48,7 @@ class GenreFeatureData:
         all_files_list.extend(self.devfiles_list)
         all_files_list.extend(self.testfiles_list)
 
-        self.precompute_min_timeseries_len(all_files_list)
+        #self.precompute_min_timeseries_len(all_files_list)
         print("[DEBUG] total number of files: " + str(len(self.timeseries_length_list)))
 
         # Training set
@@ -96,7 +96,7 @@ class GenreFeatureData:
     def extract_audio_features(self, list_of_audiofiles):
         #timeseries_length = min(self.timeseries_length_list)
         timeseries_length = 128
-        data = np.zeros((len(list_of_audiofiles), timeseries_length, 27), dtype=np.float64)
+        data = np.zeros((len(list_of_audiofiles), timeseries_length, 33), dtype=np.float64)
         target = []
 
         for i, file in enumerate(list_of_audiofiles):
@@ -104,7 +104,8 @@ class GenreFeatureData:
             mfcc = librosa.feature.mfcc(y=y, sr=sr, hop_length=self.hop_length, n_mfcc=13)
             spectral_center = librosa.feature.spectral_centroid(y=y, sr=sr, hop_length=self.hop_length)
             chroma = librosa.feature.chroma_stft(y=y, sr=sr, hop_length=self.hop_length)
-            spectral_roll = librosa.feature.spectral_rolloff(y=y, sr=sr, hop_length=self.hop_length)
+            # spectral_roll = librosa.feature.spectral_rolloff(y=y, sr=sr, hop_length=self.hop_length)
+            spectral_roll = librosa.feature.spectral_contrast(y=y, sr=sr, hop_length=self.hop_length)
 
             splits = re.split('[ .]', file)
             genre = re.split('[ /]', splits[1])[3]
@@ -113,7 +114,8 @@ class GenreFeatureData:
             data[i, :, 0:13] = mfcc.T[0:timeseries_length, :]
             data[i, :, 13:14] = spectral_center.T[0:timeseries_length, :]
             data[i, :, 14:26] = chroma.T[0:timeseries_length, :]
-            data[i, :, 26:27] = spectral_roll.T[0:timeseries_length, :]
+            data[i, :, 26:33] = spectral_roll.T[0:timeseries_length, :]
+            # data[i, :, 26:27] = spectral_roll.T[0:timeseries_length, :]
 
             print("Extracted features audio track %i of %i." % (i + 1, len(list_of_audiofiles)))
 
@@ -140,32 +142,27 @@ genre_features = GenreFeatureData()
 #genre_features.load_preprocess_data()
 genre_features.load_deserialize_data()
 
-# Adam defaults: lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-8, decay=0.
+# Keras optimizer defaults:
+# Adam   : lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-8, decay=0.
+# RMSprop: lr=0.001, rho=0.9, epsilon=1e-8, decay=0.
+# SGD    : lr=0.01, momentum=0., decay=0.
 opt = Adam()
 
-# RMSprop defaults: lr=0.001, rho=0.9, epsilon=1e-8, decay=0.
-# opt = RMSprop()
-
-# SGD defaults; lr=0.01, momentum=0., decay=0.
-# opt = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
-
-batch_size = 140
-nb_epochs = 500
+batch_size = 35
+nb_epochs = 400
 
 print("Training X shape: " + str(genre_features.train_X.shape))
 print("Training Y shape: " + str(genre_features.train_Y.shape))
-
 print("Dev X shape: " + str(genre_features.dev_X.shape))
 print("Dev Y shape: " + str(genre_features.dev_Y.shape))
-
 print("Test X shape: " + str(genre_features.test_X.shape))
 print("Test Y shape: " + str(genre_features.test_X.shape))
 
 input_shape = (genre_features.train_X.shape[1], genre_features.train_X.shape[2])
 print('Build LSTM RNN model ...')
 model = Sequential()
-model.add(LSTM(units=128, dropout=0.05, recurrent_dropout=0.05, return_sequences=True, input_shape=input_shape))
-model.add(LSTM(units=32, dropout=0.05, recurrent_dropout=0.05, return_sequences=False))
+model.add(LSTM(units=128, dropout=0.15, recurrent_dropout=0.15, return_sequences=True, input_shape=input_shape))
+model.add(LSTM(units=32, dropout=0.15, recurrent_dropout=0.15, return_sequences=False))
 model.add(Dense(units=genre_features.train_Y.shape[1], activation='softmax'))
 
 print("Compiling ...")
@@ -175,7 +172,7 @@ model.summary()
 print("Training ...")
 model.fit(genre_features.train_X, genre_features.train_Y, batch_size=batch_size, epochs=nb_epochs)
 
-print("\nEvaluating ...")
+print("\nValidating ...")
 score, accuracy = model.evaluate(genre_features.dev_X, genre_features.dev_Y, batch_size=batch_size, verbose=1)
 print("Dev loss:  ", score)
 print("Dev accuracy:  ", accuracy)
