@@ -5,19 +5,25 @@
  * Use multiple layers of LSTM Recurrent Neural Nets
  * Implementations in PyTorch, Keras & Darknet.
 
-#### Dependencies
- * Keras
- * numpy - yay math!
+### Audio features extracted
+ * [MFCC](https://en.wikipedia.org/wiki/Mel-frequency_cepstrum)
+ * [Spectral Centroid](https://en.wikipedia.org/wiki/Spectral_centroid)
+ * [Chroma](http://labrosa.ee.columbia.edu/matlab/chroma-ansyn/)
+ * [Spectral Contrast](http://ieeexplore.ieee.org/document/1035731/)
+
+### Dependencies
+ * Keras (with TensorFlow backend)
+ * numpy
  * librosa - for audio feature extraction
 
-#### Ideas for improving accuracy:
- * Normalize mfccs and other input features
+### Ideas for improving accuracy:
+ * Normalize MFCCs & other input features ([Recurrent BatchNorm](https://arxiv.org/pdf/1603.09025v4.pdf)?)
  * Decay learning rate
  * How are we initing the weights?
  * Better optimization hyperparameters (too little dropout)
  * Do you have avoidable bias? How's your variance?
 
-#### Accuracy
+### Accuracy
 
  * Training (at Epoch 400):
     Training loss: 0.5801
