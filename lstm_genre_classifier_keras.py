@@ -39,9 +39,9 @@ class GenreFeatureData:
         self.timeseries_length_list = []
 
     def load_preprocess_data(self):
-        self.trainfiles_list = path_to_audiofiles(self.dir_trainfolder)
-        self.devfiles_list = path_to_audiofiles(self.dir_devfolder)
-        self.testfiles_list = path_to_audiofiles(self.dir_testfolder)
+        self.trainfiles_list = self.path_to_audiofiles(self.dir_trainfolder)
+        self.devfiles_list = self.path_to_audiofiles(self.dir_devfolder)
+        self.testfiles_list = self.path_to_audiofiles(self.dir_testfolder)
 
         all_files_list = []
         all_files_list.extend(self.trainfiles_list)
@@ -75,7 +75,6 @@ class GenreFeatureData:
             self.test_Y = self.one_hot(self.test_Y)
             np.save(f, self.test_Y)
 
-
     def load_deserialize_data(self):
 
         self.train_X = np.load(self.train_X_preprocessed_data)
@@ -104,18 +103,22 @@ class GenreFeatureData:
             mfcc = librosa.feature.mfcc(y=y, sr=sr, hop_length=self.hop_length, n_mfcc=13)
             spectral_center = librosa.feature.spectral_centroid(y=y, sr=sr, hop_length=self.hop_length)
             chroma = librosa.feature.chroma_stft(y=y, sr=sr, hop_length=self.hop_length)
-            # spectral_roll = librosa.feature.spectral_rolloff(y=y, sr=sr, hop_length=self.hop_length)
-            spectral_roll = librosa.feature.spectral_contrast(y=y, sr=sr, hop_length=self.hop_length)
+            spectral_contrast = librosa.feature.spectral_contrast(y=y, sr=sr, hop_length=self.hop_length)
 
             splits = re.split('[ .]', file)
             genre = re.split('[ /]', splits[1])[3]
             target.append(genre)
 
+            # data[i, :, 0:13] = mfcc.T[0:timeseries_length, :]
+            # #data[i, :, 0:1] = spectral_center.T[0:timeseries_length, :]
+            # #data[i, :, 1:13] = chroma.T[0:timeseries_length, :]
+            # #data[i, :, 13:20] = spectral_contrast.T[0:timeseries_length, :]
+
+            # save
             data[i, :, 0:13] = mfcc.T[0:timeseries_length, :]
             data[i, :, 13:14] = spectral_center.T[0:timeseries_length, :]
             data[i, :, 14:26] = chroma.T[0:timeseries_length, :]
-            data[i, :, 26:33] = spectral_roll.T[0:timeseries_length, :]
-            # data[i, :, 26:27] = spectral_roll.T[0:timeseries_length, :]
+            data[i, :, 26:33] = spectral_contrast.T[0:timeseries_length, :]
 
             print("Extracted features audio track %i of %i." % (i + 1, len(list_of_audiofiles)))
 
@@ -128,14 +131,13 @@ class GenreFeatureData:
             y_one_hot[i, index] = 1
         return y_one_hot
 
-
-def path_to_audiofiles(dir_folder):
-    list_of_audio = []
-    for file in os.listdir(dir_folder):
-        if file.endswith(".au"):
-            directory = "%s/%s" % (dir_folder, file)
-            list_of_audio.append(directory)
-    return list_of_audio
+    def path_to_audiofiles(self, dir_folder):
+        list_of_audio = []
+        for file in os.listdir(dir_folder):
+            if file.endswith(".au"):
+                directory = "%s/%s" % (dir_folder, file)
+                list_of_audio.append(directory)
+        return list_of_audio
 
 
 genre_features = GenreFeatureData()
@@ -161,8 +163,8 @@ print("Test Y shape: " + str(genre_features.test_X.shape))
 input_shape = (genre_features.train_X.shape[1], genre_features.train_X.shape[2])
 print('Build LSTM RNN model ...')
 model = Sequential()
-model.add(LSTM(units=128, dropout=0.15, recurrent_dropout=0.15, return_sequences=True, input_shape=input_shape))
-model.add(LSTM(units=32, dropout=0.15, recurrent_dropout=0.15, return_sequences=False))
+model.add(LSTM(units=128, dropout=0.05, recurrent_dropout=0.35, return_sequences=True, input_shape=input_shape))
+model.add(LSTM(units=32, dropout=0.05, recurrent_dropout=0.35, return_sequences=False))
 model.add(Dense(units=genre_features.train_Y.shape[1], activation='softmax'))
 
 print("Compiling ...")
