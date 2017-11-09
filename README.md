@@ -12,7 +12,7 @@
  * [Spectral Contrast](http://ieeexplore.ieee.org/document/1035731/)
 
 ### Dependencies
- * Keras (with TensorFlow backend)
+ * [Keras](https://keras.io) or [PyTorch](http://pytorch.org)
  * numpy
  * librosa - for audio feature extraction
 
