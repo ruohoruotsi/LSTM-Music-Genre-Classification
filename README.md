@@ -6,12 +6,13 @@
  * Implementations in PyTorch, Keras & Darknet.
 
 ### Test trained LSTM model
- In ```./weights/``` you can find trained model weights and model architecture.
- To test model on your custom file, run
- 
+ In the `./weights/` you can find trained model weights and model architecture.
+
+ To test the model on your custom audio file, run
+
      python3 predict_example.py path/to/custom/file.mp3
- or to test model on our custom files, run
- 
+ or to test the model on our custom files, run
+
      python3 predict_example.py audios/classical_music.mp3
 
 ### Audio features extracted
