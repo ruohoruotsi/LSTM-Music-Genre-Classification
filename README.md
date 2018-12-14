@@ -5,6 +5,13 @@
  * Use multiple layers of LSTM Recurrent Neural Nets
  * Implementations in PyTorch, Keras & Darknet.
 
+### Test trained LSTM model
+ In ./weights/ you can find trained model weights and model architecture.
+ To test model on your custom file, run
+    python3 predict_example path/to/custom/file.mp3
+ or to test model on our custom files, run
+    python3 predict_example audios/classical_music.mp3
+
 ### Audio features extracted
  * [MFCC](https://en.wikipedia.org/wiki/Mel-frequency_cepstrum)
  * [Spectral Centroid](https://en.wikipedia.org/wiki/Spectral_centroid)
