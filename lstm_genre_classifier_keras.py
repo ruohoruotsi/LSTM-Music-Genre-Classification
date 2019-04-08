@@ -9,8 +9,21 @@ from GenreFeatureData import GenreFeatureData  # local python class with Audio f
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # or any {'0', '1', '2'}
 
 genre_features = GenreFeatureData()
-genre_features.load_preprocess_data()
-# genre_features.load_deserialize_data()
+
+# if all of the preprocessed files do not exist, regenerate them all for self-consistency
+if (
+        os.path.isfile(genre_features.train_X_preprocessed_data) and
+        os.path.isfile(genre_features.train_Y_preprocessed_data) and
+        os.path.isfile(genre_features.dev_X_preprocessed_data) and
+        os.path.isfile(genre_features.dev_Y_preprocessed_data) and
+        os.path.isfile(genre_features.test_X_preprocessed_data) and
+        os.path.isfile(genre_features.test_Y_preprocessed_data)
+):
+    print("Preprocessed files exist, deserializing npy files")
+    genre_features.load_deserialize_data()
+else:
+    print("Preprocessing raw audio files")
+    genre_features.load_preprocess_data()
 
 # Keras optimizer defaults:
 # Adam   : lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-8, decay=0.
