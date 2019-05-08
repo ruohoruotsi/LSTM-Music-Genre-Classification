@@ -27,6 +27,7 @@
  * librosa - for audio feature extraction
 
 ### Ideas for improving accuracy:
+ * [GTZAN dataset has problems](https://arxiv.org/abs/1306.1461), how do we use it with consideration?
  * Normalize MFCCs & other input features ([Recurrent BatchNorm](https://arxiv.org/pdf/1603.09025v4.pdf)?)
  * Decay learning rate
  * How are we initing the weights?
@@ -35,14 +36,10 @@
 
 ### Accuracy
 
- * Training (at Epoch 400):
-    Training loss: 0.5801
-    Training accuracy: 0.7810
+ At Epoch 400, training on a GPU:
 
- * Validating:
-    Dev loss:   0.734523485104
-    Dev accuracy:   0.766666688025
-
- * Testing:
-    Test loss:   0.900845060746
-    Test accuracy:   0.683333342274
+|  | **Loss**  | **Accuracy** | 
+| ----- | ---- | ----- |
+| Training   | `0.5801`          | ` 0.7810`        |
+| Validation | `0.734523485104`  | `0.766666688025` |
+| Testing    | `0.900845060746`  | `0.683333342274` |
