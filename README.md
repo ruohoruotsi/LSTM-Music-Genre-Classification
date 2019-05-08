@@ -36,10 +36,19 @@
 
 ### Accuracy
 
- At Epoch 400, training on a GPU:
+ At Epoch 400, training on a TITAN X GPU (October 2017):
 
 |  | **Loss**  | **Accuracy** | 
 | ----- | ---- | ----- |
 | Training   | `0.5801`          | ` 0.7810`        |
 | Validation | `0.734523485104`  | `0.766666688025` |
 | Testing    | `0.900845060746`  | `0.683333342274` |
+
+
+ At Epoch 400, training on a 2018 Macbook Pro CPU (May 2019):
+
+|  | **Loss**  | **Accuracy** | 
+| ----- | ---- | ----- |
+| Training   | `0.3486`          | ` 0.8738`        |
+| Validation | `1.028421084086`  | `0.700000017881` |
+| Testing    | `1.209656755129`  | `0.683333347241` |
