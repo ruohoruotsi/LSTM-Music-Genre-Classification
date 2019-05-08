@@ -1,19 +1,28 @@
 "An example of predicting a music genre from a custom audio file"
-import sys
-import imp
 import librosa
+import logging
+import sys
 import numpy as np
-from keras.models import model_from_json
 
-GENRE_LIST = ['classical', 'country', 'disco', 'hiphop', 'jazz', 'metal', 'pop', 'reggae']
+from keras.models import model_from_json
+from GenreFeatureData import (
+    GenreFeatureData,
+)  # local python class with Audio feature extraction and genre list
+
+# set logging level
+logging.getLogger("tensorflow").setLevel(logging.ERROR)
+
 
 def load_model(model_path, weights_path):
     "Load the trained LSTM model from directory for genre classification"
-    with open(model_path, 'r') as model_file:
+    with open(model_path, "r") as model_file:
         trained_model = model_from_json(model_file.read())
     trained_model.load_weights(weights_path)
-    trained_model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+    trained_model.compile(
+        loss="categorical_crossentropy", optimizer="adam", metrics=["accuracy"]
+    )
     return trained_model
+
 
 def extract_audio_features(file):
     "Extract audio features from an audio file for genre classification"
@@ -32,14 +41,16 @@ def extract_audio_features(file):
     features[0, :, 26:33] = spectral_contrast.T[0:timeseries_length, :]
     return features
 
+
 def get_genre(model, music_path):
     "Predict genre of music using a trained model"
     prediction = model.predict(extract_audio_features(music_path))
-    predict_genre = GENRE_LIST[np.argmax(prediction)]
+    predict_genre = GenreFeatureData().genre_list[np.argmax(prediction)]
     return predict_genre
 
-if __name__ == '__main__':
-    PATH = sys.argv[1] if len(sys.argv) == 2 else './audios/classical_music.mp3'
-    MODEL = load_model('./weights/model.json', './weights/model_weights.h5')
+
+if __name__ == "__main__":
+    PATH = sys.argv[1] if len(sys.argv) == 2 else "./audios/classical_music.mp3"
+    MODEL = load_model("./weights/model.json", "./weights/model_weights.h5")
     GENRE = get_genre(MODEL, PATH)
-    print('Model predict: {}'.format(GENRE))
+    print("Model predict: {}".format(GENRE))

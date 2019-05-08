@@ -1,23 +1,26 @@
+import logging
 import os
 from keras.models import Sequential
 from keras.layers.recurrent import LSTM
 from keras.layers import Dense
 from keras.optimizers import Adam
-from GenreFeatureData import GenreFeatureData  # local python class with Audio feature extraction (librosa)
+from GenreFeatureData import (
+    GenreFeatureData,
+)  # local python class with Audio feature extraction (librosa)
 
-import logging
-logging.getLogger('tensorflow').setLevel(logging.ERROR)
+# set logging level
+logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
 genre_features = GenreFeatureData()
 
 # if all of the preprocessed files do not exist, regenerate them all for self-consistency
 if (
-        os.path.isfile(genre_features.train_X_preprocessed_data) and
-        os.path.isfile(genre_features.train_Y_preprocessed_data) and
-        os.path.isfile(genre_features.dev_X_preprocessed_data) and
-        os.path.isfile(genre_features.dev_Y_preprocessed_data) and
-        os.path.isfile(genre_features.test_X_preprocessed_data) and
-        os.path.isfile(genre_features.test_Y_preprocessed_data)
+    os.path.isfile(genre_features.train_X_preprocessed_data)
+    and os.path.isfile(genre_features.train_Y_preprocessed_data)
+    and os.path.isfile(genre_features.dev_X_preprocessed_data)
+    and os.path.isfile(genre_features.dev_Y_preprocessed_data)
+    and os.path.isfile(genre_features.test_X_preprocessed_data)
+    and os.path.isfile(genre_features.test_Y_preprocessed_data)
 ):
     print("Preprocessed files exist, deserializing npy files")
     genre_features.load_deserialize_data()
@@ -42,26 +45,43 @@ print("Test X shape: " + str(genre_features.test_X.shape))
 print("Test Y shape: " + str(genre_features.test_X.shape))
 
 input_shape = (genre_features.train_X.shape[1], genre_features.train_X.shape[2])
-print('Build LSTM RNN model ...')
+print("Build LSTM RNN model ...")
 model = Sequential()
-model.add(LSTM(units=128, dropout=0.05, recurrent_dropout=0.35, return_sequences=True, input_shape=input_shape))
+model.add(
+    LSTM(
+        units=128,
+        dropout=0.05,
+        recurrent_dropout=0.35,
+        return_sequences=True,
+        input_shape=input_shape,
+    )
+)
 model.add(LSTM(units=32, dropout=0.05, recurrent_dropout=0.35, return_sequences=False))
-model.add(Dense(units=genre_features.train_Y.shape[1], activation='softmax'))
+model.add(Dense(units=genre_features.train_Y.shape[1], activation="softmax"))
 
 print("Compiling ...")
-model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+model.compile(loss="categorical_crossentropy", optimizer=opt, metrics=["accuracy"])
 model.summary()
 
 print("Training ...")
-model.fit(genre_features.train_X, genre_features.train_Y, batch_size=batch_size, epochs=nb_epochs)
+model.fit(
+    genre_features.train_X,
+    genre_features.train_Y,
+    batch_size=batch_size,
+    epochs=nb_epochs,
+)
 
 print("\nValidating ...")
-score, accuracy = model.evaluate(genre_features.dev_X, genre_features.dev_Y, batch_size=batch_size, verbose=1)
+score, accuracy = model.evaluate(
+    genre_features.dev_X, genre_features.dev_Y, batch_size=batch_size, verbose=1
+)
 print("Dev loss:  ", score)
 print("Dev accuracy:  ", accuracy)
 
 
 print("\nTesting ...")
-score, accuracy = model.evaluate(genre_features.test_X, genre_features.test_Y, batch_size=batch_size, verbose=1)
+score, accuracy = model.evaluate(
+    genre_features.test_X, genre_features.test_Y, batch_size=batch_size, verbose=1
+)
 print("Test loss:  ", score)
 print("Test accuracy:  ", accuracy)
