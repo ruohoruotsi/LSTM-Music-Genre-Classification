@@ -5,8 +5,8 @@ from keras.layers import Dense
 from keras.optimizers import Adam
 from GenreFeatureData import GenreFeatureData  # local python class with Audio feature extraction (librosa)
 
-# Turn off TF verbose logging
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # or any {'0', '1', '2'}
+import logging
+logging.getLogger('tensorflow').setLevel(logging.ERROR)
 
 genre_features = GenreFeatureData()
 
