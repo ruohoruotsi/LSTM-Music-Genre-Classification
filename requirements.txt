@@ -2,3 +2,5 @@ keras
 librosa
 numpy
 tensorflow
+torch
+torchvision
