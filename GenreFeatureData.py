@@ -39,19 +39,26 @@ class GenreFeatureData:
 
     def __init__(self):
         self.hop_length = 512
-        self.timeseries_length_list = []
 
-    def load_preprocess_data(self):
+        self.timeseries_length_list = []
         self.trainfiles_list = self.path_to_audiofiles(self.dir_trainfolder)
         self.devfiles_list = self.path_to_audiofiles(self.dir_devfolder)
         self.testfiles_list = self.path_to_audiofiles(self.dir_testfolder)
 
-        all_files_list = []
-        all_files_list.extend(self.trainfiles_list)
-        all_files_list.extend(self.devfiles_list)
-        all_files_list.extend(self.testfiles_list)
+        self.all_files_list = []
+        self.all_files_list.extend(self.trainfiles_list)
+        self.all_files_list.extend(self.devfiles_list)
+        self.all_files_list.extend(self.testfiles_list)
 
-        # self.precompute_min_timeseries_len(all_files_list)
+        # compute minimum timeseries length, slow to compute, caching pre-computed value of 1290
+        # self.precompute_min_timeseries_len()
+        # print("min(self.timeseries_length_list) ==" + str(min(self.timeseries_length_list)))
+        # self.timeseries_length = min(self.timeseries_length_list)
+
+        self.timeseries_length = 128    # sequence length == 128, with hop of 512 and SR of 22050
+                                        # means sequence length = 0.023 * 128 = ~2.944 seconds
+
+    def load_preprocess_data(self):
         print("[DEBUG] total number of files: " + str(len(self.timeseries_length_list)))
 
         # Training set
@@ -89,17 +96,16 @@ class GenreFeatureData:
         self.test_X = np.load(self.test_X_preprocessed_data)
         self.test_Y = np.load(self.test_Y_preprocessed_data)
 
-    def precompute_min_timeseries_len(self, list_of_audiofiles):
-        for file in list_of_audiofiles:
+    def precompute_min_timeseries_len(self):
+        for file in self.all_files_list:
             print("Loading " + str(file))
             y, sr = librosa.load(file)
             self.timeseries_length_list.append(math.ceil(len(y) / self.hop_length))
 
     def extract_audio_features(self, list_of_audiofiles):
-        # timeseries_length = min(self.timeseries_length_list)
-        timeseries_length = 128
+
         data = np.zeros(
-            (len(list_of_audiofiles), timeseries_length, 33), dtype=np.float64
+            (len(list_of_audiofiles), self.timeseries_length, 33), dtype=np.float64
         )
         target = []
 
@@ -120,10 +126,10 @@ class GenreFeatureData:
             genre = re.split("[ /]", splits[1])[3]
             target.append(genre)
 
-            data[i, :, 0:13] = mfcc.T[0:timeseries_length, :]
-            data[i, :, 13:14] = spectral_center.T[0:timeseries_length, :]
-            data[i, :, 14:26] = chroma.T[0:timeseries_length, :]
-            data[i, :, 26:33] = spectral_contrast.T[0:timeseries_length, :]
+            data[i, :, 0:13] = mfcc.T[0:self.timeseries_length, :]
+            data[i, :, 13:14] = spectral_center.T[0:self.timeseries_length, :]
+            data[i, :, 14:26] = chroma.T[0:self.timeseries_length, :]
+            data[i, :, 26:33] = spectral_contrast.T[0:self.timeseries_length, :]
 
             print(
                 "Extracted features audio track %i of %i."
@@ -139,7 +145,8 @@ class GenreFeatureData:
             y_one_hot[i, index] = 1
         return y_one_hot
 
-    def path_to_audiofiles(self, dir_folder):
+    @staticmethod
+    def path_to_audiofiles(dir_folder):
         list_of_audio = []
         for file in os.listdir(dir_folder):
             if file.endswith(".au"):
