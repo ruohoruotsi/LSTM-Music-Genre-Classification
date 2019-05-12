@@ -22,9 +22,14 @@
  * [Spectral Contrast](http://ieeexplore.ieee.org/document/1035731/)
 
 ### Dependencies
- * [Keras](https://keras.io) or [PyTorch](http://pytorch.org)
+ * [Python3](https://www.anaconda.com/distribution/#download-section)
  * numpy
  * librosa - for audio feature extraction
+ * [Keras](https://keras.io)
+    * `pip install keras`
+ * [PyTorch](http://pytorch.org)
+    * `pip install torch torchvision`
+    * `brew install libomp` 
 
 ### Ideas for improving accuracy:
  * [GTZAN dataset has problems](https://arxiv.org/abs/1306.1461), how do we use it with consideration?
