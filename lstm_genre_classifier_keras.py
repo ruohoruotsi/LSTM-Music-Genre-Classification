@@ -47,6 +47,7 @@ from keras.models import Sequential
 from keras.layers.recurrent import LSTM
 from keras.layers import Dense
 from keras.optimizers import Adam
+
 from GenreFeatureData import (
     GenreFeatureData,
 )  # local python class with Audio feature extraction (librosa)
@@ -71,21 +72,12 @@ else:
     print("Preprocessing raw audio files")
     genre_features.load_preprocess_data()
 
-# Keras optimizer defaults:
-# Adam   : lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-8, decay=0.
-# RMSprop: lr=0.001, rho=0.9, epsilon=1e-8, decay=0.
-# SGD    : lr=0.01, momentum=0., decay=0.
-opt = Adam()
-
-batch_size = 35  # num of training examples per minibatch
-num_epochs = 400
-
 print("Training X shape: " + str(genre_features.train_X.shape))
 print("Training Y shape: " + str(genre_features.train_Y.shape))
 print("Dev X shape: " + str(genre_features.dev_X.shape))
 print("Dev Y shape: " + str(genre_features.dev_Y.shape))
 print("Test X shape: " + str(genre_features.test_X.shape))
-print("Test Y shape: " + str(genre_features.test_X.shape))
+print("Test Y shape: " + str(genre_features.test_Y.shape))
 
 input_shape = (genre_features.train_X.shape[1], genre_features.train_X.shape[2])
 print("Build LSTM RNN model ...")
@@ -96,10 +88,17 @@ model.add(LSTM(units=32,  dropout=0.05, recurrent_dropout=0.35, return_sequences
 model.add(Dense(units=genre_features.train_Y.shape[1], activation="softmax"))
 
 print("Compiling ...")
+# Keras optimizer defaults:
+# Adam   : lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-8, decay=0.
+# RMSprop: lr=0.001, rho=0.9, epsilon=1e-8, decay=0.
+# SGD    : lr=0.01, momentum=0., decay=0.
+opt = Adam()
 model.compile(loss="categorical_crossentropy", optimizer=opt, metrics=["accuracy"])
 model.summary()
 
 print("Training ...")
+batch_size = 35  # num of training examples per minibatch
+num_epochs = 400
 model.fit(
     genre_features.train_X,
     genre_features.train_Y,
