@@ -55,8 +55,10 @@ class GenreFeatureData:
         # print("min(self.timeseries_length_list) ==" + str(min(self.timeseries_length_list)))
         # self.timeseries_length = min(self.timeseries_length_list)
 
-        self.timeseries_length = 128    # sequence length == 128, with hop of 512 and SR of 22050
-                                        # means sequence length = 0.023 * 128 = ~2.944 seconds
+        self.timeseries_length = (
+            128
+        )   # sequence length == 128, default fftsize == 2048 & hop == 512 @ SR of 22050
+        #  equals 128 overlapped windows that cover approx ~3.065 seconds of audio, which is a bit small!
 
     def load_preprocess_data(self):
         print("[DEBUG] total number of files: " + str(len(self.timeseries_length_list)))
