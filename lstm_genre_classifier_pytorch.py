@@ -42,15 +42,19 @@ else:
     genre_features.load_preprocess_data()
 
 train_X = torch.from_numpy(genre_features.train_X).type(torch.Tensor)
+dev_X = torch.from_numpy(genre_features.dev_X).type(torch.Tensor)
 test_X = torch.from_numpy(genre_features.test_X).type(torch.Tensor)
 
 # Targets is a long tensor of size (N,) which tells the true class of the sample.
 train_Y = torch.from_numpy(genre_features.train_Y).type(torch.LongTensor)
+dev_Y = torch.from_numpy(genre_features.dev_Y).type(torch.LongTensor)
 test_Y = torch.from_numpy(genre_features.test_Y).type(torch.LongTensor)
 
 # Convert {training, test} torch.Tensors
 print("Training X shape: " + str(genre_features.train_X.shape))
 print("Training Y shape: " + str(genre_features.train_Y.shape))
+print("Validation X shape: " + str(genre_features.dev_X.shape))
+print("Validation Y shape: " + str(genre_features.dev_Y.shape))
 print("Test X shape: " + str(genre_features.test_X.shape))
 print("Test Y shape: " + str(genre_features.test_Y.shape))
 
@@ -86,7 +90,9 @@ class LSTM(nn.Module):
 
     def get_accuracy(self, logits, target):
         """ compute accuracy for training round """
-        corrects = (torch.max(logits, 1)[1].view(target.size()).data == target.data).sum()
+        corrects = (
+            torch.max(logits, 1)[1].view(target.size()).data == target.data
+        ).sum()
         accuracy = 100.0 * corrects / self.batch_size
         return accuracy.item()
 
@@ -97,24 +103,25 @@ num_epochs = 400
 # Define model
 print("Build LSTM RNN model ...")
 model = LSTM(
-    input_dim=33,
-    hidden_dim=128,
-    batch_size=batch_size,
-    output_dim=8,
-    num_layers=2,
+    input_dim=33, hidden_dim=128, batch_size=batch_size, output_dim=8, num_layers=2
 )
 loss_function = nn.NLLLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-
-print("Training ...")
+train_on_gpu = torch.cuda.is_available()
+if train_on_gpu:
+    print("\nTraining on GPU")
+else:
+    print("\nNo GPU, training on CPU")
 
 # all training data (epoch) / batch_size == num_batches (12)
-num_batches = int(train_X.shape[0] / batch_size)  
+num_batches = int(train_X.shape[0] / batch_size)
+num_dev_batches = int(dev_X.shape[0] / batch_size)
 
 for epoch in range(num_epochs):
-    train_running_loss = 0.0
-    train_acc = 0.0
+
+    print("Training ...")
+    train_running_loss, train_acc = 0.0, 0.0
 
     # Init hidden state - if you don't want a stateful LSTM (between epochs)
     model.hidden = model.init_hidden()
@@ -129,8 +136,8 @@ for epoch in range(num_epochs):
         # Slice out local minibatches & labels => Note that we *permute* the local minibatch to
         # match the PyTorch expected input tensor format of (sequence_length, batch size, input_dim)
         X_local_minibatch, y_local_minibatch = (
-            train_X[i * batch_size: (i + 1) * batch_size,],
-            train_Y[i * batch_size: (i + 1) * batch_size,]
+            train_X[i * batch_size : (i + 1) * batch_size,],
+            train_Y[i * batch_size : (i + 1) * batch_size,],
         )
 
         # Reshape input & targets to "match" what the loss_function wants
@@ -144,7 +151,7 @@ for epoch in range(num_epochs):
         loss.backward()                                  # reeeeewind (backward pass)
         optimizer.step()                                 # parameter update
 
-        train_running_loss += loss.detach().item()
+        train_running_loss += loss.detach().item()       # unpacks the tensor into a scalar value
         train_acc += model.get_accuracy(y_pred, y_local_minibatch)
 
     print(
@@ -152,3 +159,44 @@ for epoch in range(num_epochs):
         % (epoch, train_running_loss / num_batches, train_acc / num_batches)
     )
 
+    print("Validation ...")  # should this be done every N epochs
+    print_every = 1
+
+    if epoch % print_every == 0:
+
+        # Get validation loss
+        with torch.no_grad():
+            val_running_loss, val_acc = 0.0, 0.0
+            model.eval()
+
+            model.hidden = model.init_hidden()
+            for i in range(num_dev_batches):
+                X_local_validation_minibatch, y_local_validation_minibatch = (
+                    dev_X[i * batch_size : (i + 1) * batch_size,],
+                    dev_Y[i * batch_size : (i + 1) * batch_size,],
+                )
+                X_local_minibatch = X_local_validation_minibatch.permute(1, 0, 2)
+                y_local_minibatch = torch.max(y_local_validation_minibatch, 1)[1]
+
+                y_pred = model(X_local_minibatch)
+                val_loss = loss_function(y_pred, y_local_minibatch)
+
+                val_running_loss += (
+                    val_loss.detach().item()
+                )  # unpacks the tensor into a scalar value
+                val_acc += model.get_accuracy(y_pred, y_local_minibatch)
+
+            model.train()  # reset to train mode after iterationg through validation data
+            print(
+                "Epoch:  %d | NLLoss: %.4f | Train Accuracy: %.2f | Val Loss %.4f  | Val Accuracy: %.2f"
+                % (
+                    epoch,
+                    train_running_loss / num_batches,
+                    train_acc / num_batches,
+                    val_running_loss / num_dev_batches,
+                    val_acc / num_dev_batches,
+                )
+            )
+
+
+print("Testing ...")
