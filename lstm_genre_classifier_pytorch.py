@@ -221,5 +221,5 @@ plt.show()
 
 print("Testing ...")
 
-
-## Add pytorch data loaders for yoruba, where to add them? keras or pytorch data repos?
+# File issue to add pytorch data loaders, is there an open GTZAN pytorch dataloader?
+# where to add them? keras or pytorch data repos?
