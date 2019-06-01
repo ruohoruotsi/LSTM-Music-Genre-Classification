@@ -164,7 +164,7 @@ for epoch in range(num_epochs):
     )
 
     print("Validation ...")  # should this be done every N epochs
-    if epoch % 1 == 0:
+    if epoch % 10 == 0:
         val_running_loss, val_acc = 0.0, 0.0
 
         # Compute validation loss, accuracy. Use torch.no_grad() & model.eval()
@@ -206,17 +206,20 @@ for epoch in range(num_epochs):
 
 # visualization loss
 plt.plot(epoch_list, val_loss_list)
-plt.xlabel("Number of epochs")
+plt.xlabel("# of epochs")
 plt.ylabel("Loss")
 plt.title("LSTM: Loss vs # epochs")
 plt.show()
 
 # visualization accuracy
-plt.plot(epoch_list, val_accuracy_list,color = "red")
-plt.xlabel("Number of iteration")
+plt.plot(epoch_list, val_accuracy_list, color="red")
+plt.xlabel("# of epochs")
 plt.ylabel("Accuracy")
 plt.title("LSTM: Accuracy vs # epochs")
 # plt.savefig('graph.png')
 plt.show()
 
 print("Testing ...")
+
+
+## Add pytorch data loaders for yoruba, where to add them? keras or pytorch data repos?
