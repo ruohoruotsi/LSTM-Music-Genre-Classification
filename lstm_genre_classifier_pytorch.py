@@ -19,6 +19,7 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import matplotlib.pyplot as plt
 
 from GenreFeatureData import (
     GenreFeatureData,
@@ -105,7 +106,8 @@ print("Build LSTM RNN model ...")
 model = LSTM(
     input_dim=33, hidden_dim=128, batch_size=batch_size, output_dim=8, num_layers=2
 )
-loss_function = nn.NLLLoss()
+loss_function = nn.NLLLoss()  # expects ouputs from LogSoftmax
+
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 train_on_gpu = torch.cuda.is_available()
@@ -118,9 +120,11 @@ else:
 num_batches = int(train_X.shape[0] / batch_size)
 num_dev_batches = int(dev_X.shape[0] / batch_size)
 
+val_loss_list, val_accuracy_list, epoch_list = [], [], []
+
+print("Training ...")
 for epoch in range(num_epochs):
 
-    print("Training ...")
     train_running_loss, train_acc = 0.0, 0.0
 
     # Init hidden state - if you don't want a stateful LSTM (between epochs)
@@ -130,8 +134,8 @@ for epoch in range(num_epochs):
         # zero out gradient, so they don't accumulate btw epochs
         model.zero_grad()
 
-        # train_X shape(total # of training examples, sequence_length, input_dim)
-        # train_Y shape(total # of training examples, # output classes)
+        # train_X shape: (total # of training examples, sequence_length, input_dim)
+        # train_Y shape: (total # of training examples, # output classes)
         #
         # Slice out local minibatches & labels => Note that we *permute* the local minibatch to
         # match the PyTorch expected input tensor format of (sequence_length, batch size, input_dim)
@@ -160,13 +164,11 @@ for epoch in range(num_epochs):
     )
 
     print("Validation ...")  # should this be done every N epochs
-    print_every = 1
+    if epoch % 1 == 0:
+        val_running_loss, val_acc = 0.0, 0.0
 
-    if epoch % print_every == 0:
-
-        # Get validation loss
+        # Compute validation loss, accuracy. Use torch.no_grad() & model.eval()
         with torch.no_grad():
-            val_running_loss, val_acc = 0.0, 0.0
             model.eval()
 
             model.hidden = model.init_hidden()
@@ -198,5 +200,23 @@ for epoch in range(num_epochs):
                 )
             )
 
+        epoch_list.append(epoch)
+        val_accuracy_list.append(val_acc / num_dev_batches)
+        val_loss_list.append(val_running_loss / num_dev_batches)
+
+# visualization loss
+plt.plot(epoch_list, val_loss_list)
+plt.xlabel("Number of epochs")
+plt.ylabel("Loss")
+plt.title("LSTM: Loss vs # epochs")
+plt.show()
+
+# visualization accuracy
+plt.plot(epoch_list, val_accuracy_list,color = "red")
+plt.xlabel("Number of iteration")
+plt.ylabel("Accuracy")
+plt.title("LSTM: Accuracy vs # epochs")
+# plt.savefig('graph.png')
+plt.show()
 
 print("Testing ...")
