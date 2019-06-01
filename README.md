@@ -13,7 +13,7 @@
      python3 predict_example.py path/to/custom/file.mp3
  or to test the model on our custom files, run
 
-     python3 predict_example.py audios/classical_music.mp3
+     python3 predict_example.py audio/classical_music.mp3
 
 ### Audio features extracted
  * [MFCC](https://en.wikipedia.org/wiki/Mel-frequency_cepstrum)

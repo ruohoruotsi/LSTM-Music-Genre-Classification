@@ -50,7 +50,7 @@ def get_genre(model, music_path):
 
 
 if __name__ == "__main__":
-    PATH = sys.argv[1] if len(sys.argv) == 2 else "./audios/classical_music.mp3"
+    PATH = sys.argv[1] if len(sys.argv) == 2 else "./audio/classical_music.mp3"
     MODEL = load_model("./weights/model.json", "./weights/model_weights.h5")
     GENRE = get_genre(MODEL, PATH)
     print("Model predict: {}".format(GENRE))
