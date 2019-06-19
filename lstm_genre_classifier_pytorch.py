@@ -8,7 +8,7 @@
     Question: Why is there a PyTorch implementation, when we already have Keras/Tensorflow?
     Answer:   So that we can learn more PyTorch on an easy problem and experiment with modulations on basic
               architectures with the space of this "easy problem". For example, SRU or SincNets.
-              I'm am also curious about the relative performances of both toolkits
+              I'm am also curious about the relative performances of both toolkits.
 
     The plan, first start with a torch.nn implementation, then go for the torch.nn.LSTMCell
 
@@ -82,12 +82,12 @@ class LSTM(nn.Module):
         )
 
     def forward(self, input):
-        # lstm step, only take output from the final sequence timetep to stuff into linear
+        # lstm step => then ONLY take the sequence's final timetep to pass into the linear/dense layer
+        # Note: lstm_out contains outputs for every step of the sequence we are looping over (for BPTT)
+        # but we just need the output of the last step of the sequence, aka lstm_out[-1]
         lstm_out, hidden = self.lstm(input)
-        input_to_linear = lstm_out[-1]
-
-        y_pred = self.linear(input_to_linear)
-        genre_scores = F.log_softmax(y_pred, dim=1)
+        logits = self.linear(lstm_out[-1])
+        genre_scores = F.log_softmax(logits, dim=1)
         return genre_scores
 
     def get_accuracy(self, logits, target):

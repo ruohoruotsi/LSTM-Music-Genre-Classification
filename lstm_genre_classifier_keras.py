@@ -36,7 +36,7 @@
     vector comprising mfcc, centroid, contrast & chroma features.
 
     An epoch, containing all training data (420 sequences), is divided into 12 mini-batches of
-    length 35. Each mini-batch has 35 sequences. An LSTM RNN (stack) loops over each sequence
+    length 35, i.e. each mini-batch has 35 sequences. An LSTM RNN (stack) loops over each sequence
     for sequence_length (128) steps computing an output value (of dimension 32) which is
     transformed (via Dense layer) into 8 output classes
 """
@@ -89,9 +89,9 @@ model.add(Dense(units=genre_features.train_Y.shape[1], activation="softmax"))
 
 print("Compiling ...")
 # Keras optimizer defaults:
-# Adam   : lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-8, decay=0.
-# RMSprop: lr=0.001, rho=0.9, epsilon=1e-8, decay=0.
-# SGD    : lr=0.01, momentum=0., decay=0.
+# Adam   : lr=0.001, beta_1=0.9,  beta_2=0.999, epsilon=1e-8, decay=0.
+# RMSprop: lr=0.001, rho=0.9,                   epsilon=1e-8, decay=0.
+# SGD    : lr=0.01,  momentum=0.,                             decay=0.
 opt = Adam()
 model.compile(loss="categorical_crossentropy", optimizer=opt, metrics=["accuracy"])
 model.summary()
@@ -120,3 +120,8 @@ score, accuracy = model.evaluate(
 )
 print("Test loss:  ", score)
 print("Test accuracy:  ", accuracy)
+
+# Creates a HDF5 file 'lstm_genre_classifier.h5'
+model_filename = "lstm_genre_classifier_lstm.h5"
+print("\nSaving model: " + model_filename)
+model.save(model_filename)
