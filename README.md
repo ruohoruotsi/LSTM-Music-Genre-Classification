@@ -23,8 +23,8 @@
 
 ### Dependencies
  * [Python3](https://www.anaconda.com/distribution/#download-section)
- * numpy
- * librosa - for audio feature extraction
+ * [numpy](https://numpy.org)
+ * [librosa](https://librosa.github.io/librosa) &rarr; for audio feature extraction
  * [Keras](https://keras.io)
     * `pip install keras`
  * [PyTorch](http://pytorch.org)
