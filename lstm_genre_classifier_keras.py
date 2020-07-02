@@ -85,6 +85,7 @@ model = Sequential()
 
 model.add(LSTM(units=128, dropout=0.05, recurrent_dropout=0.35, return_sequences=True, input_shape=input_shape))
 model.add(LSTM(units=32,  dropout=0.05, recurrent_dropout=0.35, return_sequences=False))
+model.add(Dense(units=128, activation="relu"))
 model.add(Dense(units=genre_features.train_Y.shape[1], activation="softmax"))
 
 print("Compiling ...")
@@ -125,3 +126,7 @@ print("Test accuracy:  ", accuracy)
 model_filename = "lstm_genre_classifier_lstm.h5"
 print("\nSaving model: " + model_filename)
 model.save(model_filename)
+print("creating .json file....")
+model_json = model.to_json()
+f = Path("ch.json")
+f.write_text(model_json)
