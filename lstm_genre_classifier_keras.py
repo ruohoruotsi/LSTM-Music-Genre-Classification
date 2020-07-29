@@ -126,7 +126,8 @@ print("Test accuracy:  ", accuracy)
 model_filename = "lstm_genre_classifier_lstm.h5"
 print("\nSaving model: " + model_filename)
 model.save(model_filename)
+# Creates a json file
 print("creating .json file....")
 model_json = model.to_json()
-f = Path("./ch.json")
+f = Path("./lstm_genre_classifier_lstm.json")
 f.write_text(model_json)
