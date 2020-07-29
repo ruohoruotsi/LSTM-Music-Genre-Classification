@@ -85,7 +85,6 @@ model = Sequential()
 
 model.add(LSTM(units=128, dropout=0.05, recurrent_dropout=0.35, return_sequences=True, input_shape=input_shape))
 model.add(LSTM(units=32,  dropout=0.05, recurrent_dropout=0.35, return_sequences=False))
-model.add(Dense(units=128, activation="relu"))
 model.add(Dense(units=genre_features.train_Y.shape[1], activation="softmax"))
 
 print("Compiling ...")
