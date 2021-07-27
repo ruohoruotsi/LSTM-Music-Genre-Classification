@@ -75,20 +75,14 @@ class LSTM(nn.Module):
         # setup output layer
         self.linear = nn.Linear(self.hidden_dim, output_dim)
 
-    def init_hidden(self):
-        return (
-            torch.zeros(self.num_layers, self.batch_size, self.hidden_dim),
-            torch.zeros(self.num_layers, self.batch_size, self.hidden_dim),
-        )
-
-    def forward(self, input):
+    def forward(self, input, hidden=None):
         # lstm step => then ONLY take the sequence's final timetep to pass into the linear/dense layer
         # Note: lstm_out contains outputs for every step of the sequence we are looping over (for BPTT)
         # but we just need the output of the last step of the sequence, aka lstm_out[-1]
-        lstm_out, hidden = self.lstm(input)
+        lstm_out, hidden = self.lstm(input, hidden)
         logits = self.linear(lstm_out[-1])
         genre_scores = F.log_softmax(logits, dim=1)
-        return genre_scores
+        return genre_scores, hidden
 
     def get_accuracy(self, logits, target):
         """ compute accuracy for training round """
@@ -111,6 +105,10 @@ loss_function = nn.NLLLoss()  # expects ouputs from LogSoftmax
 
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
+
+# if you want to keep LSTM stateful between batches, you can set do_continue_train = True, which is not suggested.
+do_continue_train = False
+
 train_on_gpu = torch.cuda.is_available()
 if train_on_gpu:
     print("\nTraining on GPU")
@@ -129,7 +127,7 @@ for epoch in range(num_epochs):
     train_running_loss, train_acc = 0.0, 0.0
 
     # Init hidden state - if you don't want a stateful LSTM (between epochs)
-    model.hidden = model.init_hidden()
+    hidden = None
     for i in range(num_batches):
 
         # zero out gradient, so they don't accumulate btw epochs
@@ -151,7 +149,15 @@ for epoch in range(num_epochs):
         # NLLLoss does not expect a one-hot encoded vector as the target, but class indices
         y_local_minibatch = torch.max(y_local_minibatch, 1)[1]
 
-        y_pred = model(X_local_minibatch)                # fwd the bass (forward pass)
+        y_pred, hidden = model(X_local_minibatch, hidden)                # fwd the bass (forward pass)
+        
+        if not do_continue_train:
+            hidden = None
+        else:
+            h_0, c_0 = hidden
+            h_0.detach_(), c_0.detach_()
+            hidden = (h_0, c_0)
+            
         loss = loss_function(y_pred, y_local_minibatch)  # compute loss
         loss.backward()                                  # reeeeewind (backward pass)
         optimizer.step()                                 # parameter update
@@ -172,7 +178,7 @@ for epoch in range(num_epochs):
         with torch.no_grad():
             model.eval()
 
-            model.hidden = model.init_hidden()
+            hidden = None
             for i in range(num_dev_batches):
                 X_local_validation_minibatch, y_local_validation_minibatch = (
                     dev_X[i * batch_size : (i + 1) * batch_size,],
@@ -181,7 +187,10 @@ for epoch in range(num_epochs):
                 X_local_minibatch = X_local_validation_minibatch.permute(1, 0, 2)
                 y_local_minibatch = torch.max(y_local_validation_minibatch, 1)[1]
 
-                y_pred = model(X_local_minibatch)
+                y_pred, hidden = model(X_local_minibatch, hidden)
+                if not do_continue_train:
+                    hidden = None
+                    
                 val_loss = loss_function(y_pred, y_local_minibatch)
 
                 val_running_loss += (
