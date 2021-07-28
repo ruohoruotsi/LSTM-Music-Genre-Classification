@@ -1,6 +1,7 @@
 keras
 librosa
 numpy
+pytorch-lightning
 tensorflow
 torch
 torchvision
