@@ -122,7 +122,7 @@ class MusicGenreClassifer(pl.LightningModule):
         # NLLLoss does not expect a one-hot encoded vector as the target, but class indices
         y_local_minibatch = torch.max(y_local_minibatch, 1)[1]
 
-        y_pred, hidden = self.model(X_local_minibatch, hidden)  # fwd the bass (forward pass)
+        y_pred, hidden = self.model(X_local_minibatch, hidden)  # forward pass
 
         if not self.do_continue_train:
             hidden = None
@@ -154,8 +154,8 @@ num_epochs = 400
 # optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 
-# if you want to keep LSTM stateful between batches, you can set do_continue_train = True, which is not suggested.
-# do_continue_train = False
+# if you want to keep LSTM stateful between batches, you can set stateful = True, which is not suggested for training
+# stateful = False
 
 train_on_gpu = torch.cuda.is_available()
 if train_on_gpu:
@@ -199,7 +199,8 @@ for epoch in range(num_epochs):
 
         y_pred, hidden = model(X_local_minibatch, hidden)                # fwd the bass (forward pass)
         
-        if not do_continue_train:
+        # Stateful = False for training. Do we go Stateful = True during inference/prediction time?
+        if not stateful:
             hidden = None
         else:
             h_0, c_0 = hidden
@@ -236,7 +237,7 @@ for epoch in range(num_epochs):
                 y_local_minibatch = torch.max(y_local_validation_minibatch, 1)[1]
 
                 y_pred, hidden = model(X_local_minibatch, hidden)
-                if not do_continue_train:
+                if not stateful:
                     hidden = None
                     
                 val_loss = loss_function(y_pred, y_local_minibatch)

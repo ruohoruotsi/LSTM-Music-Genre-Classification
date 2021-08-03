@@ -1,5 +1,6 @@
 keras
 librosa
+matplotlib
 numpy
 pytorch-lightning
 tensorflow

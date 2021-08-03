@@ -30,12 +30,12 @@ genre_features = GenreFeatureData()
 
 # if all of the preprocessed files do not exist, regenerate them all for self-consistency
 if (
-    os.path.isfile(genre_features.train_X_preprocessed_data)
-    and os.path.isfile(genre_features.train_Y_preprocessed_data)
-    and os.path.isfile(genre_features.dev_X_preprocessed_data)
-    and os.path.isfile(genre_features.dev_Y_preprocessed_data)
-    and os.path.isfile(genre_features.test_X_preprocessed_data)
-    and os.path.isfile(genre_features.test_Y_preprocessed_data)
+        os.path.isfile(genre_features.train_X_preprocessed_data)
+        and os.path.isfile(genre_features.train_Y_preprocessed_data)
+        and os.path.isfile(genre_features.dev_X_preprocessed_data)
+        and os.path.isfile(genre_features.dev_Y_preprocessed_data)
+        and os.path.isfile(genre_features.test_X_preprocessed_data)
+        and os.path.isfile(genre_features.test_Y_preprocessed_data)
 ):
     print("Preprocessed files exist, deserializing npy files")
     genre_features.load_deserialize_data()
@@ -59,6 +59,7 @@ print("Validation X shape: " + str(genre_features.dev_X.shape))
 print("Validation Y shape: " + str(genre_features.dev_Y.shape))
 print("Test X shape: " + str(genre_features.test_X.shape))
 print("Test Y shape: " + str(genre_features.test_Y.shape))
+
 
 # class definition
 class LSTM(nn.Module):
@@ -87,7 +88,7 @@ class LSTM(nn.Module):
     def get_accuracy(self, logits, target):
         """ compute accuracy for training round """
         corrects = (
-            torch.max(logits, 1)[1].view(target.size()).data == target.data
+                torch.max(logits, 1)[1].view(target.size()).data == target.data
         ).sum()
         accuracy = 100.0 * corrects / self.batch_size
         return accuracy.item()
@@ -105,9 +106,8 @@ loss_function = nn.NLLLoss()  # expects ouputs from LogSoftmax
 
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-
-# if you want to keep LSTM stateful between batches, you can set do_continue_train = True, which is not suggested.
-do_continue_train = False
+# if you want to keep LSTM stateful between batches, you can set stateful = True, which is not suggested for training
+stateful = False
 
 train_on_gpu = torch.cuda.is_available()
 if train_on_gpu:
@@ -139,8 +139,8 @@ for epoch in range(num_epochs):
         # Slice out local minibatches & labels => Note that we *permute* the local minibatch to
         # match the PyTorch expected input tensor format of (sequence_length, batch size, input_dim)
         X_local_minibatch, y_local_minibatch = (
-            train_X[i * batch_size : (i + 1) * batch_size,],
-            train_Y[i * batch_size : (i + 1) * batch_size,],
+            train_X[i * batch_size: (i + 1) * batch_size, ],
+            train_Y[i * batch_size: (i + 1) * batch_size, ],
         )
 
         # Reshape input & targets to "match" what the loss_function wants
@@ -149,20 +149,21 @@ for epoch in range(num_epochs):
         # NLLLoss does not expect a one-hot encoded vector as the target, but class indices
         y_local_minibatch = torch.max(y_local_minibatch, 1)[1]
 
-        y_pred, hidden = model(X_local_minibatch, hidden)                # fwd the bass (forward pass)
-        
-        if not do_continue_train:
+        y_pred, hidden = model(X_local_minibatch, hidden)  # forward pass
+
+        # Stateful = False for training. Do we go Stateful = True during inference/prediction time?
+        if not stateful:
             hidden = None
         else:
             h_0, c_0 = hidden
             h_0.detach_(), c_0.detach_()
             hidden = (h_0, c_0)
-            
-        loss = loss_function(y_pred, y_local_minibatch)  # compute loss
-        loss.backward()                                  # reeeeewind (backward pass)
-        optimizer.step()                                 # parameter update
 
-        train_running_loss += loss.detach().item()       # unpacks the tensor into a scalar value
+        loss = loss_function(y_pred, y_local_minibatch)  # compute loss
+        loss.backward()  # reeeeewind (backward pass)
+        optimizer.step()  # parameter update
+
+        train_running_loss += loss.detach().item()  # unpacks the tensor into a scalar value
         train_acc += model.get_accuracy(y_pred, y_local_minibatch)
 
     print(
@@ -181,16 +182,16 @@ for epoch in range(num_epochs):
             hidden = None
             for i in range(num_dev_batches):
                 X_local_validation_minibatch, y_local_validation_minibatch = (
-                    dev_X[i * batch_size : (i + 1) * batch_size,],
-                    dev_Y[i * batch_size : (i + 1) * batch_size,],
+                    dev_X[i * batch_size: (i + 1) * batch_size, ],
+                    dev_Y[i * batch_size: (i + 1) * batch_size, ],
                 )
                 X_local_minibatch = X_local_validation_minibatch.permute(1, 0, 2)
                 y_local_minibatch = torch.max(y_local_validation_minibatch, 1)[1]
 
                 y_pred, hidden = model(X_local_minibatch, hidden)
-                if not do_continue_train:
+                if not stateful:
                     hidden = None
-                    
+
                 val_loss = loss_function(y_pred, y_local_minibatch)
 
                 val_running_loss += (
