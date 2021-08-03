@@ -16,7 +16,6 @@
 
 import os
 import torch
-import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
@@ -127,10 +126,10 @@ for epoch in range(num_epochs):
     train_running_loss, train_acc = 0.0, 0.0
 
     # Init hidden state - if you don't want a stateful LSTM (between epochs)
-    hidden = None
+    hidden_state = None
     for i in range(num_batches):
 
-        # zero out gradient, so they don't accumulate btw epochs
+        # zero out gradient, so they don't accumulate btw batches
         model.zero_grad()
 
         # train_X shape: (total # of training examples, sequence_length, input_dim)
@@ -149,18 +148,18 @@ for epoch in range(num_epochs):
         # NLLLoss does not expect a one-hot encoded vector as the target, but class indices
         y_local_minibatch = torch.max(y_local_minibatch, 1)[1]
 
-        y_pred, hidden = model(X_local_minibatch, hidden)  # forward pass
+        y_pred, hidden_state = model(X_local_minibatch, hidden_state)  # forward pass
 
         # Stateful = False for training. Do we go Stateful = True during inference/prediction time?
         if not stateful:
-            hidden = None
+            hidden_state = None
         else:
-            h_0, c_0 = hidden
+            h_0, c_0 = hidden_state
             h_0.detach_(), c_0.detach_()
-            hidden = (h_0, c_0)
+            hidden_state = (h_0, c_0)
 
         loss = loss_function(y_pred, y_local_minibatch)  # compute loss
-        loss.backward()  # reeeeewind (backward pass)
+        loss.backward()  # backward pass
         optimizer.step()  # parameter update
 
         train_running_loss += loss.detach().item()  # unpacks the tensor into a scalar value
@@ -171,15 +170,15 @@ for epoch in range(num_epochs):
         % (epoch, train_running_loss / num_batches, train_acc / num_batches)
     )
 
-    print("Validation ...")  # should this be done every N epochs
     if epoch % 10 == 0:
+        print("Validation ...")  # should this be done every N=10 epochs
         val_running_loss, val_acc = 0.0, 0.0
 
         # Compute validation loss, accuracy. Use torch.no_grad() & model.eval()
         with torch.no_grad():
             model.eval()
 
-            hidden = None
+            hidden_state = None
             for i in range(num_dev_batches):
                 X_local_validation_minibatch, y_local_validation_minibatch = (
                     dev_X[i * batch_size: (i + 1) * batch_size, ],
@@ -188,9 +187,9 @@ for epoch in range(num_epochs):
                 X_local_minibatch = X_local_validation_minibatch.permute(1, 0, 2)
                 y_local_minibatch = torch.max(y_local_validation_minibatch, 1)[1]
 
-                y_pred, hidden = model(X_local_minibatch, hidden)
+                y_pred, hidden_state = model(X_local_minibatch, hidden_state)
                 if not stateful:
-                    hidden = None
+                    hidden_state = None
 
                 val_loss = loss_function(y_pred, y_local_minibatch)
 
