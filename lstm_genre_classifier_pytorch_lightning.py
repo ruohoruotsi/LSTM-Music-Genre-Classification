@@ -14,54 +14,22 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import matplotlib.pyplot as plt
 import pytorch_lightning as pl
+from torch.utils.data import DataLoader
 
 from GenreFeatureData import (
     GenreFeatureData,
 )  # local python class with Audio feature extraction (librosa)
 
-genre_features = GenreFeatureData()
 
-# if all of the preprocessed files do not exist, regenerate them all for self-consistency
-if (
-    os.path.isfile(genre_features.train_X_preprocessed_data)
-    and os.path.isfile(genre_features.train_Y_preprocessed_data)
-    and os.path.isfile(genre_features.dev_X_preprocessed_data)
-    and os.path.isfile(genre_features.dev_Y_preprocessed_data)
-    and os.path.isfile(genre_features.test_X_preprocessed_data)
-    and os.path.isfile(genre_features.test_Y_preprocessed_data)
-):
-    print("Preprocessed files exist, deserializing npy files")
-    genre_features.load_deserialize_data()
-else:
-    print("Preprocessing raw audio files")
-    genre_features.load_preprocess_data()
 
-train_X = torch.from_numpy(genre_features.train_X).type(torch.Tensor)
-dev_X = torch.from_numpy(genre_features.dev_X).type(torch.Tensor)
-test_X = torch.from_numpy(genre_features.test_X).type(torch.Tensor)
-
-# Targets is a long tensor of size (N,) which tells the true class of the sample.
-train_Y = torch.from_numpy(genre_features.train_Y).type(torch.LongTensor)
-dev_Y = torch.from_numpy(genre_features.dev_Y).type(torch.LongTensor)
-test_Y = torch.from_numpy(genre_features.test_Y).type(torch.LongTensor)
-
-# Convert {training, test} torch.Tensors
-print("Training X shape: " + str(genre_features.train_X.shape))
-print("Training Y shape: " + str(genre_features.train_Y.shape))
-print("Validation X shape: " + str(genre_features.dev_X.shape))
-print("Validation Y shape: " + str(genre_features.dev_Y.shape))
-print("Test X shape: " + str(genre_features.test_X.shape))
-print("Test Y shape: " + str(genre_features.test_Y.shape))
 
 # class definition
 class LSTM(nn.Module):
-    def __init__(self, input_dim, hidden_dim, batch_size, output_dim=8, num_layers=2):
+    def __init__(self, input_dim, hidden_dim, output_dim=8, num_layers=2):
         super(LSTM, self).__init__()
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
-        self.batch_size = batch_size
         self.num_layers = num_layers
 
         # setup LSTM layer
@@ -69,6 +37,10 @@ class LSTM(nn.Module):
 
         # setup output layer
         self.linear = nn.Linear(self.hidden_dim, output_dim)
+        if torch.cuda.is_available():
+            print("\nTraining on GPU")
+        else:
+            print("\nNo GPU, training on CPU")
 
     def forward(self, input, hidden=None):
         # lstm step => then ONLY take the sequence's final timetep to pass into the linear/dense layer
@@ -79,41 +51,32 @@ class LSTM(nn.Module):
         genre_scores = F.log_softmax(logits, dim=1)
         return genre_scores, hidden
 
-    def get_accuracy(self, logits, target):
-        """ compute accuracy for training round """
-        corrects = (
-            torch.max(logits, 1)[1].view(target.size()).data == target.data
-        ).sum()
-        accuracy = 100.0 * corrects / self.batch_size
-        return accuracy.item()
-
 
 class MusicGenreClassifer(pl.LightningModule):
-    def __init__(self):
-        super().__init__()
-        self.model = LSTM(input_dim=33, hidden_dim=128, batch_size=batch_size, output_dim=8, num_layers=2)
-        self.loss_function = nn.NLLLoss()  # expects ouputs from LogSoftmax
-        # if you want to keep LSTM stateful between batches, you can set do_continue_train = True, which is not suggested.
-        self.do_continue_train = False
 
-    def forward(self, x):
-        # in lightning, forward defines the prediction/inference actions
-        embedding = self.encoder(x)
-        return embedding
+    def __init__(self, batch_size):
+        super().__init__()
+        self.model = LSTM(input_dim=33, hidden_dim=128, output_dim=8, num_layers=2)
+        self.hidden = None
+
+        # if you want to keep LSTM stateful between batches, you can set stateful = True, which is not suggested for training
+        self.stateful = False
+
+    def forward(self, x, hidden=None):
+        prediction, self.hidden = self.model(x, hidden)
+        return prediction
 
     def training_step(self, batch, batch_idx):
-        # training_step defines the train loop. It is independent of forward
-        # zero out gradient, so they don't accumulate btw epochs
-        self.model.zero_grad()
-
         # train_X shape: (total # of training examples, sequence_length, input_dim)
         # train_Y shape: (total # of training examples, # output classes)
         #
         # Slice out local minibatches & labels => Note that we *permute* the local minibatch to
         # match the PyTorch expected input tensor format of (sequence_length, batch size, input_dim)
+
+        # IOHAVOC here, how to format data for easy use in datamodule?
         X_local_minibatch, y_local_minibatch = (
-            train_X[batch_idx * batch_size : (batch_idx + 1) * batch_size,],
-            train_Y[batch_idx * batch_size : (batch_idx + 1) * batch_size,],
+            train_X[batch_idx * self.batch_size: (batch_idx + 1) * self.batch_size, ],
+            train_Y[batch_idx * self.batch_size: (batch_idx + 1) * self.batch_size, ],
         )
 
         # Reshape input & targets to "match" what the loss_function wants
@@ -122,163 +85,113 @@ class MusicGenreClassifer(pl.LightningModule):
         # NLLLoss does not expect a one-hot encoded vector as the target, but class indices
         y_local_minibatch = torch.max(y_local_minibatch, 1)[1]
 
-        y_pred, hidden = self.model(X_local_minibatch, hidden)  # forward pass
+        y_pred, self.hidden = self.model(X_local_minibatch, self.hidden)  # forward pass
 
         if not self.do_continue_train:
-            hidden = None
+            self.hidden = None
         else:
-            h_0, c_0 = hidden
+            h_0, c_0 = self.hidden
             h_0.detach_(), c_0.detach_()
-            hidden = (h_0, c_0)
+            self.hidden = (h_0, c_0)
 
-        loss = loss_function(y_pred, y_local_minibatch)  # compute loss
+        loss = nn.NLLLoss(y_pred, y_local_minibatch)  # compute loss
         self.log("train_loss", loss)
         return loss
+
+    def validation_step(self, batch, batch_idx):
+        self.hidden = None
+
+        # IOHAVOC here, how to format data for easy use in datamodule?
+        for i in range(num_dev_batches):
+            X_local_validation_minibatch, y_local_validation_minibatch = (
+                dev_X[i * self.batch_size: (i + 1) * self.batch_size, ],
+                dev_Y[i * self.batch_size: (i + 1) * self.batch_size, ],
+            )
+            X_local_minibatch = X_local_validation_minibatch.permute(1, 0, 2)
+            y_local_minibatch = torch.max(y_local_validation_minibatch, 1)[1]
+
+            y_pred, self.hidden = self.model(X_local_minibatch, self.hidden)
+            if not self.stateful:
+                hidden = None
+
+            val_loss = nn.NLLLoss(y_pred, y_local_minibatch)
+            return val_loss
 
     def configure_optimizers(self):
         optimizer = optim.Adam(self.model.parameters(), lr=0.001)
         return optimizer
 
 
+class MusicGenreDataModule(pl.LightningDataModule):
+    def __init__(self, batch_size=35):
+        super().__init__()
+        self.batch_size = batch_size
+        self.genre_features = GenreFeatureData()
 
-batch_size = 35  # num of training examples per minibatch
-num_epochs = 400
+    def prepare_data(self):
+        # if all of the preprocessed files do not exist, regenerate them all for self-consistency
+        if (
+                os.path.isfile(self.genre_features.train_X_preprocessed_data)
+                and os.path.isfile(self.genre_features.train_Y_preprocessed_data)
+                and os.path.isfile(self.genre_features.dev_X_preprocessed_data)
+                and os.path.isfile(self.genre_features.dev_Y_preprocessed_data)
+                and os.path.isfile(self.genre_features.test_X_preprocessed_data)
+                and os.path.isfile(self.genre_features.test_Y_preprocessed_data)
+        ):
+            print("Preprocessed files exist, deserializing npy files")
+            self.genre_features.load_deserialize_data()
+        else:
+            print("Preprocessing raw audio files")
+            self.genre_features.load_preprocess_data()
 
-# Define model
-# print("Build LSTM RNN model ...")
-# model = LSTM(
-#     input_dim=33, hidden_dim=128, batch_size=batch_size, output_dim=8, num_layers=2
-# )
-# loss_function = nn.NLLLoss()  # expects ouputs from LogSoftmax
+    def setup(self, stage: Optional[str] = None):
 
-# optimizer = optim.Adam(model.parameters(), lr=0.001)
+        train_X = torch.from_numpy(self.genre_features.train_X).type(torch.Tensor)
+        dev_X = torch.from_numpy(self.genre_features.dev_X).type(torch.Tensor)
+        test_X = torch.from_numpy(self.genre_features.test_X).type(torch.Tensor)
 
+        # Targets is a long tensor of size (N,) which tells the true class of the sample.
+        train_Y = torch.from_numpy(self.genre_features.train_Y).type(torch.LongTensor)
+        dev_Y = torch.from_numpy(self.genre_features.dev_Y).type(torch.LongTensor)
+        test_Y = torch.from_numpy(self.genre_features.test_Y).type(torch.LongTensor)
+
+        # Convert {training, test} torch.Tensors
+        print("Training X shape: " + str(self.genre_features.train_X.shape))
+        print("Training Y shape: " + str(self.genre_features.train_Y.shape))
+        print("Validation X shape: " + str(self.genre_features.dev_X.shape))
+        print("Validation Y shape: " + str(self.genre_features.dev_Y.shape))
+        print("Test X shape: " + str(self.genre_features.test_X.shape))
+        print("Test Y shape: " + str(self.genre_features.test_Y.shape))
+
+        # IOHAVOC
+        self.train, self.val, self.test = load_datasets()
+        self.train_dims = self.train.next_batch.size()
+
+    def train_dataloader(self):
+        return DataLoader(self.train, batch_size=self.batch_size)
+
+    def val_dataloader(self):
+        return DataLoader(self.val, batch_size=self.batch_size)
+
+    def test_dataloader(self):
+        return DataLoader(self.test, batch_size=self.batch_size)
+
+# batch_size = 35  # num of training examples per minibatch
+# num_epochs = 400
 
 # if you want to keep LSTM stateful between batches, you can set stateful = True, which is not suggested for training
 # stateful = False
 
-train_on_gpu = torch.cuda.is_available()
-if train_on_gpu:
-    print("\nTraining on GPU")
-else:
-    print("\nNo GPU, training on CPU")
-
 # all training data (epoch) / batch_size == num_batches (12)
-num_batches = int(train_X.shape[0] / batch_size)
-num_dev_batches = int(dev_X.shape[0] / batch_size)
+# num_batches = int(train_X.shape[0] / batch_size)
+# num_dev_batches = int(dev_X.shape[0] / batch_size)
 
-val_loss_list, val_accuracy_list, epoch_list = [], [], []
 
-print("Training ...")
-for epoch in range(num_epochs):
+if __name__ == "__main__":
+    model = MusicGenreClassifer()
+    trainer = pl.Trainer()
 
-    train_running_loss, train_acc = 0.0, 0.0
+    genre_dm = MusicGenreDataModule()
 
-    # Init hidden state - if you don't want a stateful LSTM (between epochs)
-    hidden = None
-    for i in range(num_batches):
-
-        # zero out gradient, so they don't accumulate btw epochs
-        model.zero_grad()
-
-        # train_X shape: (total # of training examples, sequence_length, input_dim)
-        # train_Y shape: (total # of training examples, # output classes)
-        #
-        # Slice out local minibatches & labels => Note that we *permute* the local minibatch to
-        # match the PyTorch expected input tensor format of (sequence_length, batch size, input_dim)
-        X_local_minibatch, y_local_minibatch = (
-            train_X[i * batch_size : (i + 1) * batch_size,],
-            train_Y[i * batch_size : (i + 1) * batch_size,],
-        )
-
-        # Reshape input & targets to "match" what the loss_function wants
-        X_local_minibatch = X_local_minibatch.permute(1, 0, 2)
-
-        # NLLLoss does not expect a one-hot encoded vector as the target, but class indices
-        y_local_minibatch = torch.max(y_local_minibatch, 1)[1]
-
-        y_pred, hidden = model(X_local_minibatch, hidden)                # fwd the bass (forward pass)
-        
-        # Stateful = False for training. Do we go Stateful = True during inference/prediction time?
-        if not stateful:
-            hidden = None
-        else:
-            h_0, c_0 = hidden
-            h_0.detach_(), c_0.detach_()
-            hidden = (h_0, c_0)
-            
-        loss = loss_function(y_pred, y_local_minibatch)  # compute loss
-        loss.backward()                                  # reeeeewind (backward pass)
-        optimizer.step()                                 # parameter update
-
-        train_running_loss += loss.detach().item()       # unpacks the tensor into a scalar value
-        train_acc += model.get_accuracy(y_pred, y_local_minibatch)
-
-    print(
-        "Epoch:  %d | NLLoss: %.4f | Train Accuracy: %.2f"
-        % (epoch, train_running_loss / num_batches, train_acc / num_batches)
-    )
-
-    print("Validation ...")  # should this be done every N epochs
-    if epoch % 10 == 0:
-        val_running_loss, val_acc = 0.0, 0.0
-
-        # Compute validation loss, accuracy. Use torch.no_grad() & model.eval()
-        with torch.no_grad():
-            model.eval()
-
-            hidden = None
-            for i in range(num_dev_batches):
-                X_local_validation_minibatch, y_local_validation_minibatch = (
-                    dev_X[i * batch_size : (i + 1) * batch_size,],
-                    dev_Y[i * batch_size : (i + 1) * batch_size,],
-                )
-                X_local_minibatch = X_local_validation_minibatch.permute(1, 0, 2)
-                y_local_minibatch = torch.max(y_local_validation_minibatch, 1)[1]
-
-                y_pred, hidden = model(X_local_minibatch, hidden)
-                if not stateful:
-                    hidden = None
-                    
-                val_loss = loss_function(y_pred, y_local_minibatch)
-
-                val_running_loss += (
-                    val_loss.detach().item()
-                )  # unpacks the tensor into a scalar value
-                val_acc += model.get_accuracy(y_pred, y_local_minibatch)
-
-            model.train()  # reset to train mode after iterationg through validation data
-            print(
-                "Epoch:  %d | NLLoss: %.4f | Train Accuracy: %.2f | Val Loss %.4f  | Val Accuracy: %.2f"
-                % (
-                    epoch,
-                    train_running_loss / num_batches,
-                    train_acc / num_batches,
-                    val_running_loss / num_dev_batches,
-                    val_acc / num_dev_batches,
-                )
-            )
-
-        epoch_list.append(epoch)
-        val_accuracy_list.append(val_acc / num_dev_batches)
-        val_loss_list.append(val_running_loss / num_dev_batches)
-
-# visualization loss
-plt.plot(epoch_list, val_loss_list)
-plt.xlabel("# of epochs")
-plt.ylabel("Loss")
-plt.title("LSTM: Loss vs # epochs")
-plt.show()
-
-# visualization accuracy
-plt.plot(epoch_list, val_accuracy_list, color="red")
-plt.xlabel("# of epochs")
-plt.ylabel("Accuracy")
-plt.title("LSTM: Accuracy vs # epochs")
-# plt.savefig('graph.png')
-plt.show()
-
-print("Testing ...")
-
-# File issue to add pytorch data loaders, is there an open GTZAN pytorch dataloader?
-# where to add them? keras or pytorch data repos?
+    # trainer.fit(model, train_loader, val_loader)
+    trainer.fit(model, genre_dm)
