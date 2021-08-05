@@ -151,7 +151,7 @@ class GTZANDataset(data.Dataset):
             # # NLLLoss does not expect a one-hot encoded vector as the target, but class indices
             # y_training_example_at_index = torch.max(y_training_example_at_index, 1)[1]
 
-        elif self.partition == 'train':
+        elif self.partition == 'dev':
             X_training_example_at_index = self.dev_X[index, ]
             y_training_example_at_index = self.dev_Y[index, ]
 
@@ -207,9 +207,16 @@ if __name__ == "__main__":
     # # trainer.fit(model, train_loader, val_loader)
     # trainer.fit(model, genre_dm)
 
-    dataset = GTZANDataset('train')
+    train_dataset = GTZANDataset('train')
+    dev_dataset = GTZANDataset('dev')
     # debug
     # print(dataset[0:10])
 
-    dataloader = DataLoader(dataset, batch_size=35, shuffle=False)
+    train_dataloader = DataLoader(train_dataset, batch_size=35, shuffle=False)
+    dev_dataloader = DataLoader(dev_dataset, batch_size=35, shuffle=False)
 
+    for i, batch in enumerate(train_dataloader):
+        print(i, batch)
+
+    for i, batch in enumerate(dev_dataloader):
+        print(i, batch)
