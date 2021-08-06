@@ -54,10 +54,11 @@ class LSTM(nn.Module):
 
 class MusicGenreClassifer(pl.LightningModule):
 
-    def __init__(self, batch_size):
+    def __init__(self):
         super().__init__()
         self.model = LSTM(input_dim=33, hidden_dim=128, output_dim=8, num_layers=2)
         self.hidden = None
+        self.loss_function = nn.NLLLoss()
 
         # To keep LSTM stateful between batches, you can set stateful = True, which is not suggested for training
         self.stateful = False
@@ -71,7 +72,7 @@ class MusicGenreClassifer(pl.LightningModule):
         X_local_minibatch = X_local_minibatch.permute(1, 0, 2)  # Reshape input for loss_function
 
         y_pred, self.hidden = self.model(X_local_minibatch, self.hidden)  # forward pass
-        if not self.do_continue_train:
+        if not self.stateful:
             self.hidden = None
         else:
             h_0, c_0 = self.hidden
@@ -79,19 +80,20 @@ class MusicGenreClassifer(pl.LightningModule):
             self.hidden = (h_0, c_0)
 
         y_local_minibatch = torch.max(y_local_minibatch, 1)[1]  # NLLLoss expects class indices
-        loss = nn.NLLLoss(y_pred, y_local_minibatch)            # compute loss
+        loss = self.loss_function(y_pred, y_local_minibatch)    # compute loss
         self.log("train_loss", loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
         X_local_minibatch, y_local_minibatch = batch            # Unpack input
         X_local_minibatch = X_local_minibatch.permute(1, 0, 2)  # Reshape input for loss_function
+
         y_pred, self.hidden = self.model(X_local_minibatch, self.hidden)
         if not self.stateful:
             self.hidden = None
 
         y_local_minibatch = torch.max(y_local_minibatch, 1)[1]  # NLLLoss expects class indices
-        val_loss = nn.NLLLoss(y_pred, y_local_minibatch)        # compute loss
+        val_loss = self.loss_function(y_pred, y_local_minibatch)        # compute loss
         return val_loss
 
     def configure_optimizers(self):
@@ -146,11 +148,6 @@ class GTZANDataset(data.Dataset):
             y_training_example_at_index = self.train_Y[index, ]
             # torch.index_select(self.train_X, dim=0, index=torch.tensor([index], dtype=torch.long))
 
-            # # Reshape input & targets to "match" what the loss_function wants
-            # X_training_example_at_index = X_training_example_at_index.permute(1, 0, 2)
-            # # NLLLoss does not expect a one-hot encoded vector as the target, but class indices
-            # y_training_example_at_index = torch.max(y_training_example_at_index, 1)[1]
-
         elif self.partition == 'dev':
             X_training_example_at_index = self.dev_X[index, ]
             y_training_example_at_index = self.dev_Y[index, ]
@@ -170,53 +167,39 @@ class GTZANDataset(data.Dataset):
             return len(self.test_Y)
 
 
-# class MusicGenreDataModule(pl.LightningDataModule):
-#     def __init__(self, batch_size=35):
-#         super().__init__()
-#         self.batch_size = batch_size # num of training examples per minibatch
-#
-#     def prepare_data(self):
-#
-#
-#     def setup(self, stage: Optional[str] = None):
-#
-#
-#
-#         # IOHAVOC
-#         self.train_dataset = None
-#         self.val_dataset = None
-#         self.test_dataset = None
-#         self.train_dims = self.train_dataset.next_batch.size()
-#
-#     def train_dataloader(self) -> DataLoader:
-#         return DataLoader(self.train_dataset, batch_size=self.batch_size)
-#
-#     def val_dataloader(self) -> DataLoader:
-#         return DataLoader(self.val_dataset, batch_size=self.batch_size)
-#
-#     def test_dataloader(self) -> DataLoader:
-#         return DataLoader(self.val_dataset, batch_size=self.batch_size)
+class MusicGenreDataModule(pl.LightningDataModule):
+    def __init__(self, batch_size: int = 35) -> None:
+        super().__init__()
+        self.batch_size = batch_size # num of training examples per minibatch
+
+    def setup(self, stage):
+        self.train_dataset = GTZANDataset('train')
+        self.dev_dataset = GTZANDataset('dev')
+        self.test_dataset = GTZANDataset('test')
+
+    def train_dataloader(self) -> DataLoader:
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0)
+
+    def val_dataloader(self) -> DataLoader:
+        return DataLoader(self.dev_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0)
+
+    def test_dataloader(self) -> DataLoader:
+        return DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False)
 
 
 if __name__ == "__main__":
-    # model = MusicGenreClassifer()
-    # trainer = pl.Trainer()
-    #
-    # # genre_dm = MusicGenreDataModule()
-    #
-    # # trainer.fit(model, train_loader, val_loader)
-    # trainer.fit(model, genre_dm)
+    model = MusicGenreClassifer()
+    trainer = pl.Trainer()
+    genre_dm = MusicGenreDataModule()
 
-    train_dataset = GTZANDataset('train')
-    dev_dataset = GTZANDataset('dev')
-    # debug
-    # print(dataset[0:10])
+    # dataloader fit
+    # trainer.fit(model, train_loader, val_loader)
 
-    train_dataloader = DataLoader(train_dataset, batch_size=35, shuffle=False)
-    dev_dataloader = DataLoader(dev_dataset, batch_size=35, shuffle=False)
+    # datamodel fit
+    trainer.fit(model, genre_dm)
 
-    for i, batch in enumerate(train_dataloader):
-        print(i, batch)
-
-    for i, batch in enumerate(dev_dataloader):
-        print(i, batch)
+    # debug dataloaders
+    # for i, batch in enumerate(train_dataloader):
+    #     print(i, batch)
+    # for i, batch in enumerate(dev_dataloader):
+    #     print(i, batch)
