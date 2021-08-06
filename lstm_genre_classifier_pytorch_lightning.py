@@ -17,6 +17,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data as data
+from pytorch_lightning.callbacks import ProgressBar
 from torch.utils.data import DataLoader
 
 from GenreFeatureData import (
@@ -81,7 +82,7 @@ class MusicGenreClassifer(pl.LightningModule):
 
         y_local_minibatch = torch.max(y_local_minibatch, 1)[1]  # NLLLoss expects class indices
         loss = self.loss_function(y_pred, y_local_minibatch)    # compute loss
-        self.log("train_loss", loss)
+        self.log("train_loss", loss, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -94,7 +95,7 @@ class MusicGenreClassifer(pl.LightningModule):
 
         y_local_minibatch = torch.max(y_local_minibatch, 1)[1]          # NLLLoss expects class indices
         val_loss = self.loss_function(y_pred, y_local_minibatch)        # compute loss
-        self.log("val_loss", val_loss)
+        self.log("val_loss", val_loss, prog_bar=True)
         return val_loss
 
     def configure_optimizers(self):
@@ -185,7 +186,7 @@ class MusicGenreDataModule(pl.LightningDataModule):
         self.test_dataset = GTZANDataset('test')
 
     def train_dataloader(self) -> DataLoader:
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0)
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=0)
 
     def val_dataloader(self) -> DataLoader:
         return DataLoader(self.dev_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0)
@@ -196,7 +197,7 @@ class MusicGenreDataModule(pl.LightningDataModule):
 
 if __name__ == "__main__":
     model = MusicGenreClassifer()
-    trainer = pl.Trainer(max_epochs=5)
+    trainer = pl.Trainer(max_epochs=400, log_every_n_steps=4)
     genre_dm = MusicGenreDataModule()
 
     # datamodel fit
