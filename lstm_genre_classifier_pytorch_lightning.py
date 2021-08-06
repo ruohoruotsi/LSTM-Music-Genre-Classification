@@ -92,8 +92,9 @@ class MusicGenreClassifer(pl.LightningModule):
         if not self.stateful:
             self.hidden = None
 
-        y_local_minibatch = torch.max(y_local_minibatch, 1)[1]  # NLLLoss expects class indices
+        y_local_minibatch = torch.max(y_local_minibatch, 1)[1]          # NLLLoss expects class indices
         val_loss = self.loss_function(y_pred, y_local_minibatch)        # compute loss
+        self.log("val_loss", val_loss)
         return val_loss
 
     def configure_optimizers(self):
@@ -103,7 +104,7 @@ class MusicGenreClassifer(pl.LightningModule):
 
 class GTZANDataset(data.Dataset):
 
-    def __init__(self, partition):
+    def __init__(self, partition) -> object:
         self.partition = partition
         self.genre_features = GenreFeatureData()
 
@@ -132,12 +133,16 @@ class GTZANDataset(data.Dataset):
         self.test_Y = torch.from_numpy(self.genre_features.test_Y).type(torch.LongTensor)
 
         # Convert {training, test} torch.Tensors
-        print("Training X shape: " + str(self.genre_features.train_X.shape))
-        print("Training Y shape: " + str(self.genre_features.train_Y.shape))
-        print("Validation X shape: " + str(self.genre_features.dev_X.shape))
-        print("Validation Y shape: " + str(self.genre_features.dev_Y.shape))
-        print("Test X shape: " + str(self.genre_features.test_X.shape))
-        print("Test Y shape: " + str(self.genre_features.test_Y.shape))
+        if self.partition == 'train':
+            print("Training X shape: " + str(self.genre_features.train_X.shape))
+            print("Training Y shape: " + str(self.genre_features.train_Y.shape))
+        elif self.partition == 'dev':
+            print("Validation X shape: " + str(self.genre_features.dev_X.shape))
+            print("Validation Y shape: " + str(self.genre_features.dev_Y.shape))
+        elif self.partition == 'test':
+            print("Test X shape: " + str(self.genre_features.test_X.shape))
+            print("Test Y shape: " + str(self.genre_features.test_Y.shape))
+
 
     def __getitem__(self, index):
         # train_X shape: (total # of training examples, sequence_length, input_dim)
@@ -146,7 +151,6 @@ class GTZANDataset(data.Dataset):
         if self.partition == 'train':
             X_training_example_at_index = self.train_X[index, ]
             y_training_example_at_index = self.train_Y[index, ]
-            # torch.index_select(self.train_X, dim=0, index=torch.tensor([index], dtype=torch.long))
 
         elif self.partition == 'dev':
             X_training_example_at_index = self.dev_X[index, ]
@@ -170,7 +174,10 @@ class GTZANDataset(data.Dataset):
 class MusicGenreDataModule(pl.LightningDataModule):
     def __init__(self, batch_size: int = 35) -> None:
         super().__init__()
-        self.batch_size = batch_size # num of training examples per minibatch
+        self.dev_dataset = None
+        self.test_dataset = None
+        self.train_dataset = None
+        self.batch_size = batch_size    # num of training examples per minibatch
 
     def setup(self, stage):
         self.train_dataset = GTZANDataset('train')
@@ -189,11 +196,8 @@ class MusicGenreDataModule(pl.LightningDataModule):
 
 if __name__ == "__main__":
     model = MusicGenreClassifer()
-    trainer = pl.Trainer()
+    trainer = pl.Trainer(max_epochs=5)
     genre_dm = MusicGenreDataModule()
-
-    # dataloader fit
-    # trainer.fit(model, train_loader, val_loader)
 
     # datamodel fit
     trainer.fit(model, genre_dm)
