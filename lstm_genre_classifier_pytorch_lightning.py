@@ -105,8 +105,8 @@ class MusicGenreClassifer(pl.LightningModule):
 
 class GTZANDataset(data.Dataset):
 
-    def __init__(self, partition) -> object:
-        self.partition = partition
+    def __init__(self, dataset_partition) -> object:
+        self.partition = dataset_partition
         self.genre_features = GenreFeatureData()
 
         # if all of the preprocessed files do not exist, regenerate them all for self-consistency
