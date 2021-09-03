@@ -26,9 +26,9 @@ from GenreFeatureData import (
 
 
 # class definition
-class LSTM(nn.Module):
+class LSTMClassifierNet(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim=8, num_layers=2):
-        super(LSTM, self).__init__()
+        super(LSTMClassifierNet, self).__init__()
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
@@ -57,7 +57,7 @@ class MusicGenreClassifer(pl.LightningModule):
 
     def __init__(self):
         super().__init__()
-        self.model = LSTM(input_dim=33, hidden_dim=128, output_dim=8, num_layers=2)
+        self.model = LSTMClassifierNet(input_dim=33, hidden_dim=128, output_dim=8, num_layers=2)
         self.hidden = None
         self.loss_function = nn.NLLLoss()
 
