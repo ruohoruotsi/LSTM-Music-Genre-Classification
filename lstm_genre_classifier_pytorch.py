@@ -10,8 +10,6 @@
               architectures within the space of an "easy problem". For example, SRU or SincNets.
               I'm am also curious about the relative performances of both toolkits.
 
-    The plan, first start with a torch.nn implementation, then go for the torch.nn.LSTMCell
-
 """
 
 import os
@@ -47,7 +45,7 @@ class LSTM(nn.Module):
         # Note: lstm_out contains outputs for every step of the sequence we are looping over (for BPTT)
         # but we just need the output of the last step of the sequence, aka lstm_out[-1]
         lstm_out, hidden = self.lstm(input, hidden)
-        logits = self.linear(lstm_out[-1])
+        logits = self.linear(lstm_out[-1])              # equivalent to return_sequences=False from Keras
         genre_scores = F.log_softmax(logits, dim=1)
         return genre_scores, hidden
 
